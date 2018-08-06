@@ -21,14 +21,13 @@ function ClientSocket() {
 		ws.onopen = function () {
 			console.log('ws onopen');
 			let data = msgHead(msg);
-			console.log('ws send data: ', data);
 		    ws.send(data);
 		};
 		ws.onmessage = function (e) {
 		    console.log('ws onmessage');
 		    console.log('from server: ' + e.data);
 		    let data = getData(e.data);
-	        console.log("@@", data)
+	        console.log("@@", data);
 		};
 		ws.onclose = function(evt) {
 		    console.log("Connection closed.");
