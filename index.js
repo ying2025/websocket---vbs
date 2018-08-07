@@ -3843,14 +3843,13 @@ function ClientSocket() {
 		ws.onopen = function () {
 			console.log('ws onopen');
 			let data = msgHead(msg);
-			console.log('ws send data: ', data);
 		    ws.send(data);
 		};
 		ws.onmessage = function (e) {
 		    console.log('ws onmessage');
 		    console.log('from server: ' + e.data);
 		    let data = getData(e.data);
-	        console.log("@@", data)
+	        console.log("@@", data);
 		};
 		ws.onclose = function(evt) {
 		    console.log("Connection closed.");
@@ -3875,13 +3874,7 @@ function ClientSocket() {
 		let u8a =new Uint8Array(preBytes.length + dataLength);
 		u8a.set(new Uint8Array(preBytes), 0); 
     	u8a.set(new Uint8Array(payBytes), preBytes.length);
-		
 		return u8a.buffer;
-		// let msgTemp = preBytes.concat(payBytes);
-		// let data = new Uint8Array(msgTemp);
-		// console.log("data", data);
-		// // encode control bit data
-		// return data.buffer;
 	}
 	function blob2abu(blob) {
 		let arrayBuffer;
@@ -3890,7 +3883,6 @@ function ClientSocket() {
 	    fileReader.readAsArrayBuffer(blob);
 	    fileReader.onloadend = function (e) {
 	    	if(fileReader.result === null) {
-	          console.log('readFile unexpected this.result == null');
 	          err = "ReadFile unexpected this.result == null !";
 	          return;
 	        }
@@ -3899,7 +3891,6 @@ function ClientSocket() {
 		    return uint8Buf;
 		}
 		fileReader.error = function (err) {
-			console.log(22222)
 			err = "Cannot read anything !";
 		}
 	}
@@ -3916,7 +3907,7 @@ function ClientSocket() {
 			err = "Read fail :" + err;
 			return;
 		}
-		
+
         let fin = tempData[0];    //A
         let payloadLength;
         let payloadData;
@@ -3956,7 +3947,7 @@ function test() {
 			"dfhj": "dfhjdf",
 			"dfdf": "fgjg",
 			"title": "Q",
-			"len": "206",
+			"longName": "李四",
 			"people": [
 				{ "firstName": "Brett", "lastName":"McLaughlin", "email": "aaaa" },
 				{ "firstName": "Jason", "lastName":"Hunter", "email": "bbbb"},

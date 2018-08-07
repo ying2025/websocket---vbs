@@ -52,7 +52,6 @@ function ClientSocket() {
 		let u8a =new Uint8Array(preBytes.length + dataLength);
 		u8a.set(new Uint8Array(preBytes), 0); 
     	u8a.set(new Uint8Array(payBytes), preBytes.length);
-		
 		return u8a.buffer;
 	}
 	function blob2abu(blob) {
@@ -62,7 +61,6 @@ function ClientSocket() {
 	    fileReader.readAsArrayBuffer(blob);
 	    fileReader.onloadend = function (e) {
 	    	if(fileReader.result === null) {
-	          console.log('readFile unexpected this.result == null');
 	          err = "ReadFile unexpected this.result == null !";
 	          return;
 	        }
@@ -127,7 +125,7 @@ function test() {
 			"dfhj": "dfhjdf",
 			"dfdf": "fgjg",
 			"title": "Q",
-			"len": "206",
+			"longName": "李四",
 			"people": [
 				{ "firstName": "Brett", "lastName":"McLaughlin", "email": "aaaa" },
 				{ "firstName": "Jason", "lastName":"Hunter", "email": "bbbb"},
