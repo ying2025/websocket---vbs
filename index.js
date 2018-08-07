@@ -3838,8 +3838,9 @@ function ClientSocket() {
     };
     this.sendAndReceive = function(msg) {
     	// Create WebSocket connection.
-		let ws = new WebSocket('wss://echo.websocket.org');
+		// let ws = new WebSocket('wss://echo.websocket.org');
 		// let ws = new WebSocket('ws://192.168.199.133:8888/');
+		let ws = new WebSocket('ws://192.168.199.120:8888/');
 		ws.onopen = function () {
 			console.log('ws onopen');
 			let data = msgHead(msg);
