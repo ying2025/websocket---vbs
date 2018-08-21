@@ -67,10 +67,28 @@ function arrCopy(arr1, obj) {
 	return arr1;
 }
 
+function judgeIsBasicType(obj) {
+	let isBasic;
+	switch (typeof obj) {
+        case 'number':
+        case 'boolean':
+        case 'string':
+        case 'undefined':
+        case 'null':
+        case 'symbol':
+        	isBasic = true;
+        	break;
+        default:
+        	isBasic = false;
+    }
+    return isBasic;
+}
+
 module.exports = {
     isInteger,
     stringToByte,
     isEmpty,
     arrCopy,
-    abToString
+    abToString,
+    judgeIsBasicType
 }

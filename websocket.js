@@ -1,124 +1,176 @@
 const commonFun = require('./commonFun.js');
 const vbsEncode = require('./encode.js');
 const vbsDecode = require('./decode.js');
+const  msgHeader  = require('./message.js').MsgHeader;
 let NoError = "";
-function ClientSocket() {
+
+function ClientSocket(ws_server) {
+
+    this.closed = false;
+    this.err = "";
+    this.connectionTimeout = null;
+    this.requestList = [];
+    this.receiveData = {};
+
 	let st = {
 		index: 0, 
 		remains: 0
 	};
-	let err = "";
-	ClientSocket.prototype.content = {  // global variable in VbsDecoder
+	this.content = {  
         pingTimes: 0,
 		OPEN: true,
 		dataList: [],
-		state: st // 同一份数据不同帧的序列号
+		state: st, // 同一份数据不同帧的序列号
+		ws_server: ''
     };
-    this.sendAndReceive = function(msg) {
-    	// Create WebSocket connection.
-		let ws = new WebSocket('wss://echo.websocket.org');
-		// let ws = new WebSocket('ws://192.168.199.133:8888/');
-		// let ws = new WebSocket('ws://192.168.199.120:8888/');
-		ws.onopen = function () {
-			console.log('ws onopen');
-			let data = msgHead(msg);
-		    ws.send(data);
+    this.connectStatus = {
+    	noConnect: 0,  // 未连接
+    	connecting: 1, // 连接中
+    	open: 2,   // 已连接可以通信
+    	closing: 3, // 关闭中
+    	closed: 4  // 已关闭
+    };
+    this.readyState  = 0;
+    let txid = 0;
+    let i = 0;
+
+    let that = this; // ClientSocket
+    let msgHead = new msgHeader();
+    
+    ClientSocket.prototype.connect = function(callback) {
+    	that.ws = new WebSocket(ws_server);
+    	
+    	that.ws.onopen = function () {	
+			if (that.readyState  == that.connectStatus.noConnect) {
+				that.ws.send(msgHead.helloMsg('H'));
+			} 
 		};
-		ws.onmessage = function (e) {
-		    console.log('ws onmessage');
-		    console.log('from server: ' + e.data);
-		    let data = getData(e.data);
-	        console.log("@@", data);
+
+		that.ws.onmessage = function (e) {
+		    console.log('ws onmessage from server: ' + e.data);
+		    let dataMsg = that.getData(e.data).then((data) => {
+		    	if (data.Type !== undefined && data.Type == 'H') {
+			    	callback(that.readyState);
+			    }
+			    if (typeof data != "undefined" && typeof data.txid != "undefined") {
+			    	that.requestList = that.requestList.filter(v => v!= data.txid); // delete txid in data.txid
+			    }
+		    }).catch((error) => {
+		    	callback(error);
+		    });		    
 		};
-		ws.onclose = function(evt) {
-		    console.log("Connection closed.");
+
+		that.ws.onerror = function(error) {
+			console.log("Socket error: " + error);
+	    };
+
+		that.ws.onclose = function(evt) {
+			that.closed = true;
+			that.readyState = that.connectStatus.closing;
+			console.log("Wait closing, there are");
+			if(that.requestList.length == 0) {
+	            that.readyState = that.connectStatus.closed;
+	            clearTimeout(that.connectionTimeout);
+	            console.log("Connection closed !");
+	        } else {
+	            that.connectionTimeout = setTimeout(() => {
+			        that.requestList = that.requestList.pop(); 
+		     	}, 5000);
+	        }
 		}; 
     }
-	// 封装数据
-	function msgHead(msg) {
-		// 控制位: FIN, Opcode, MASK, Payload_len
-		let preBytes = [], 
-		    // payBytes = vbsEncode.encodeVBS(msg);
-		    payBytes = vbsEncode.encodeVBS(msg);
-		let dataLength = payBytes.byteLength;
-		// 构建Frame的第一字节
-		preBytes.push(0x51);  // "Q"
-		// 处理不同长度的dataLength，构建Frame的第二字节（或第2～第8字节）
-		// 注意这里以大端字节序构建dataLength > 126的dataLenght
-		preBytes.push( // 3个字节
-		    (dataLength & 0xFF0000) >> 16,
-		    (dataLength & 0xFF00) >> 8,
-		    dataLength & 0xFF
-		);
-		let u8a =new Uint8Array(preBytes.length + dataLength);
-		u8a.set(new Uint8Array(preBytes), 0); 
-    	u8a.set(new Uint8Array(payBytes), preBytes.length);
-		return u8a.buffer;
-	}
-	function blob2abu(blob) {
-		let arrayBuffer;
-		let uint8Buf;
-		let fileReader = new FileReader();
-	    fileReader.readAsArrayBuffer(blob);
-	    fileReader.onloadend = function (e) {
-	    	if(fileReader.result === null) {
-	          err = "ReadFile unexpected this.result == null !";
-	          return;
-	        }
-			arrayBuffer = fileReader.result;
-		    uint8Buf = new Uint8Array(arrayBuffer);
-		    return uint8Buf;
-		}
-		fileReader.error = function (err) {
-			err = "Cannot read anything !";
-		}
+	
+    ClientSocket.prototype.sendData = function(msgBody) {
+    	if (that.readyState  == that.connectStatus.open) {
+			txid = _genarateTxid();
+			let data = msgHead.questMsg(txid, "service", "method", {"d": "sdjkd"}, msgBody);	    	
+	    	that.ws.send(data);
+	    } else {
+	    	that.err = "Please connect to server or Waiting server response ";
+	    	return that.err;
+	    }
+    }
+	
+	ClientSocket.prototype.close = function() {
+		return new Promise((res) => {
+			if (that.requestList.length  == 0) {
+				that.ws.send(msgHead.helloMsg('B'));
+			} else {
+				console.log("Waiting for all requests to return !");
+			}
+			if (!that.ws) {
+                console.log("Websocket already cleared", this);
+                return res();
+            }
+            if( that.ws.terminate ) {
+                that.ws.terminate();
+            }
+            else{
+                that.ws.close();
+            }
+            if (that.ws.readyState === 3) res();
+		})
 	}
 	// // 解析当前帧状态
-    function getState(data) {
+   ClientSocket.prototype.getData = function(data) {
     	let tempData;
-    	let fileReader = new FileReader();
-		fileReader.readAsArrayBuffer(data);
-		fileReader.onload = function(e) {
-		  let arrayBuffer = fileReader.result;
-		  tempData = new Uint8Array(arrayBuffer);
-	    }
-	    fileReader.onerror = function (err) {
-			err = "Read fail :" + err;
-			return;
-		}
 
-        let fin = tempData[0];    //A
-        let payloadLength;
-        let payloadData;
-       	payloadLength = ((tempData[1] & 0xFF) << 16) | (tempData[2] & 0xFF) << 8 | (tempData[3] & 0xFF);
+		let decodeMsg = _readerBlob(data).then((result) => {
+		    tempData = result;
 
-        payloadData = vbsDecode.decodeVBS(tempData, 4);
+			let msg = msgHead.decodeHeader(tempData);
 
-        this.state = Object.assign({}, {
-            fin,
-            payloadData,
-            payloadLength
-        });
+			if (typeof msg.Type != "undefined") {
+				switch (msg.Type) {
+					case 'C':          
+						this.readyState  = 1; // 
+						break;
+					case 'H':
+						that.readyState  = 2;
+						break;
+					case 'B':
+						that.readyState  = 3;
+						that.ws.onclose();
+						break;
+				}
+			}
+			console.log("Receive data is : ", msg);
+			return msg;
+		 }).catch(function (error) {
+		    console.log(error);
+		    this.err = "Fail: " + error;
+		    return this.err;
+		});
+		return decodeMsg;
     }
-	// 解析数据
-	// 收集本次message的所有数据
-    function getData(data) {
-        getState(data);
-        if (err != NoError) {
-        	return err;
-        }
-        // 收集本次数据流数据
-        return this.state.payloadData;  
-    }
-}
 
-function webSocket(data) {
-   let client = new ClientSocket();
-   client.sendAndReceive(data);
+    function _readerBlob(data) {
+		let tempData;
+		return new Promise( function(resolve, reject) {
+			let fileReader = new FileReader();
+			fileReader.onload = (e) => {
+			  let arrayBuffer = fileReader.result;
+			  tempData = new Uint8Array(arrayBuffer);
+			  resolve(tempData);
+			}			
+			fileReader.onerror = (err) => {
+				that.err = "Read fail :" + err;
+				reject(err);;
+			}
+			fileReader.readAsArrayBuffer(data);
+		});
+		
+	}
+
+    function _genarateTxid() {
+		let min = 0, max = Math.pow(2, 64);
+		return Math.round(Math.random() * (max - min)) + min;
+	}
+
 }
 
 module.exports = {
-	webSocket
+	ClientSocket
 }
 
 function test() {
@@ -139,6 +191,9 @@ function test() {
 				{ "firstName": "Elliotte", "lastName":"Hdfld", "email": "cccc" }
 			]
 	};
-	webSocket(msg);
+	// ws://192.168.199.136:8888/
+   // ws://192.168.199.120:8888/
+   // wss://echo.websocket.org
+   let client = new ClientSocket('wss://echo.websocket.org', msg);
 }
-test();
+// test();

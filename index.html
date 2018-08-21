@@ -1,4 +1,83 @@
 <html>
-  <meta charset="UTF-8">
-	<script type="text/javascript" src="./index.js"></script>
+  <head>
+     <meta charset="UTF-8">
+	 <title>Title</title>
+	 <script type="text/javascript" src="./index.js"></script>
+  </head>
+<body>
+	<div>
+	    <input type="text" id="txt">
+	    <input type="button" id="connect" value="连接" onclick="connectting()">
+	    <input type="button" id="submit" value="发送数据" onclick="sendMsg()">
+	    <input type="button" id="close" value="关闭连接" onclick="closeConn()">
+	</div>
+
+   <div id="info"></div>
+   <script>
+   		// let Websocket = require("./index.js");
+   		// console.log(ClientSocket.ws.onopen)
+   		let msg = {
+				"dfhj": "dfhjdf",
+				"dfdf": "fgjg",
+				"title": "Q",
+				"longName": "李四",
+				"people": [
+					{ "firstName": "Brett", "lastName":"McLaughlin", "email": "aaaa" },
+					{ "firstName": "Jason", "lastName":"Hunter", "email": "bbbb"},
+					{ "firstName": "Elliotte", "lastName":"Harold", "email": "cccc" },
+					{ "secondName": "Brett", "lastName":"McLaughlin", "email": "aaaa" },
+					{ "secondName": "Jason", "lastName":"Hunter", "email": "bbbb"},
+					{ "secondName": "Elliotte", "lastName":"Harold", "email": "cccc" },
+					{ "firstName": "Brett", "lastName":"HJDFdfdf", "email": "aaaa" },
+					{ "firstName": "Jason", "lastName":"Hdfdf", "email": "bbbb"},
+					{ "firstName": "Elliotte", "lastName":"Hdfld", "email": "cccc" }
+				]
+		};
+   	 	let client;
+   	 	let err = "";
+   	 	let NoError = "";
+		function connectting() {
+			client = new ClientSocket('wss://echo.websocket.org');
+			let ele = document.createElement('div');
+			client.connect(function(readyState) {
+				if (readyState == 2) {
+					ele.innerText = '【服务端 连接成功】';
+				} else {
+					ele.innerText = '【服务端 连接失败】';
+				}
+				document.getElementById('info').appendChild(ele);
+			});
+		}
+
+		function sendMsg() {
+			let ele = document.createElement('div');
+			let txt = document.getElementById('txt');
+			let value = txt.value;
+			let innerTest = ele.innerText;
+			if (value == "") {
+				innerTest = "数据不能为空！"
+				txt.value = '';
+	        	document.getElementById('info').appendChild(ele);
+			}
+			client.sendData(txt.value);
+			client.ws.onmessage = (result) => {
+				let dataMsg = client.getData(result.data).then((data) => {
+			    	ele.innerText = '【接收到数据】' + data.arg;
+			    }).catch((error) => {
+			    	ele.innerText = '【接收到的数据】' + error;
+			    });
+			    document.getElementById('info').appendChild(ele);
+			}
+	       
+		}
+
+		function closeConn() {
+			let ele = document.createElement('div');
+			client.close(); //发送数据
+	        ele.innerText = '【客户端 连接关闭】';
+	        document.getElementById('info').appendChild(ele);
+		}
+   </script>
+   
+</body>
 </html>

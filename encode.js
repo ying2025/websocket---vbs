@@ -253,7 +253,6 @@ function vbsStringify(obj) {
 function encodeVBS(u) { 
     let strCode = new vbsStringify(u);  // get encode vbs
     let byteArr = new Uint8Array(strCode);
-
     return byteArr.buffer;
 }
 

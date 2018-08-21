@@ -68,12 +68,30 @@ function arrCopy(arr1, obj) {
 	return arr1;
 }
 
+function judgeIsBasicType(obj) {
+	let isBasic;
+	switch (typeof obj) {
+        case 'number':
+        case 'boolean':
+        case 'string':
+        case 'undefined':
+        case 'null':
+        case 'symbol':
+        	isBasic = true;
+        	break;
+        default:
+        	isBasic = false;
+    }
+    return isBasic;
+}
+
 module.exports = {
     isInteger,
     stringToByte,
     isEmpty,
     arrCopy,
-    abToString
+    abToString,
+    judgeIsBasicType
 }
 
 },{}],2:[function(require,module,exports){
@@ -584,7 +602,7 @@ module.exports = {
     decodeVBS
 }
 
-},{"./commonFun.js":1,"./float.js":4,"./kind.js":5,"./limits.js":6,"bignumber.js":7}],3:[function(require,module,exports){
+},{"./commonFun.js":1,"./float.js":4,"./kind.js":5,"./limits.js":6,"bignumber.js":8}],3:[function(require,module,exports){
 const kindConst  =    require('./kind.js');
 const floatOperate =  require('./float.js');
 const commonFun = require('./commonFun.js');
@@ -840,7 +858,6 @@ function vbsStringify(obj) {
 function encodeVBS(u) { 
     let strCode = new vbsStringify(u);  // get encode vbs
     let byteArr = new Uint8Array(strCode);
-
     return byteArr.buffer;
 }
 
@@ -963,7 +980,7 @@ module.exports = {
 }
 
 
-},{"bignumber.js":7}],5:[function(require,module,exports){
+},{"bignumber.js":8}],5:[function(require,module,exports){
 // identifier different type
 const vbsKind = {
 	VBS_TAIL: 0x01,
@@ -1004,6 +1021,158 @@ module.exports = {
     MaxInt64
 }
 },{}],7:[function(require,module,exports){
+const vbsEncode = require('./encode.js');
+const vbsDecode = require('./decode.js');
+const commonFun = require('./commonFun.js');
+let NoError = "";
+let MaxMessageSize = 64*1024*1024;
+class MsgHeader {
+	constructor(flags = 0x00) {
+		this._MessageHeader = {
+			Magic: 'X', // 'X'  0x58
+			Version: '!', // '!' 0x21
+			Type: '',      // 'Q', 'A', 'H', 'B', 'C'
+			Flags: 0x00,   // 0x00 or 0x01, default 0x00
+			BodySize: 0    // 4 bytes and big endian byte order
+		};
+		this._Quest = {
+			txid: 0,
+			reserved: 8, 
+			start: -1,
+			buf: []
+		};
+		this._Answer = {
+			txid: 0,
+			status: 0,
+			argsOff: 0,
+			buf: []
+		};
+		this.err = "";
+		this.packet = [];
+		this.status = 0;
+	}
+	fillHeader(type, len) {
+		if (len < 0) {
+			this.err = "Can't reach here";
+			return;
+		} else if (len > MaxMessageSize) {
+			this.err = "Size is to large" + len;
+			return;
+		}
+		this.packet[0] = 0x58; // 'X' 
+		this.packet[1] =  0x21; // '!'
+		this.packet[2] = type.charCodeAt(); // type
+		this.packet[3] = this._MessageHeader.Flags; // flag
+		this.packet[4] = (len >> 24) & 0xFF;
+		this.packet[5] = (len >> 16) & 0xFF;
+		this.packet[6] = (len >> 8) & 0xFF;
+		this.packet[7] = len & 0xFF;
+	}
+	helloMsg(type) {
+		this.fillHeader(type, 0);	
+		let u8a = new Uint8Array(this.packet);
+		return u8a.buffer;
+	}
+
+	questMsg(txid, service, method, ctx, args) {
+		let q = this._Quest;
+		q.txid = txid;
+		if (q.txid < 0) {
+			this.err = "txid not set yet";
+			return;
+		}
+		let newTxid = vbsEncode.encodeVBS(txid);
+		let newService = vbsEncode.encodeVBS(service);
+		let newMethod =  vbsEncode.encodeVBS(method);
+		let newCtx = vbsEncode.encodeVBS(ctx);
+		let newArg = vbsEncode.encodeVBS(args);
+
+		let n1 = newTxid.byteLength + newService.byteLength;
+		let n2 = newMethod.byteLength + newCtx.byteLength;
+		let len = n1 + n2 + newArg.byteLength;
+		this.fillHeader('Q', len);
+
+		let u8a = new Uint8Array(8 + len);
+
+		u8a.set(new Uint8Array(this.packet), 0)
+		u8a.set(new Uint8Array(newTxid), 8); 
+    	u8a.set(new Uint8Array(newService), 8 + newTxid.byteLength);
+		u8a.set(new Uint8Array(newMethod), 8 + n1);
+		u8a.set(new Uint8Array(newCtx), 8 + n1 + newMethod.byteLength);
+		u8a.set(new Uint8Array(newArg), 8 + n1 + n2);
+		console.log("data: ", u8a);
+		return u8a.buffer;
+	}
+
+	// TODO encryption
+	checkMsg(uint8Arr) {
+		
+	}
+	//
+	decodeAnswer(uint8Arr) {
+		let a = Object.assign(this._Answer, {ser:"", func:"",ctx:"",arg:""});
+		let pos = 0;
+		// Test
+		[a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
+		[a.ser, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
+		[a.func, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
+		[a.ctx, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
+		[a.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
+		return a;
+		// Normal
+		// let a = this._Answer;
+		// let pos = 0;
+		// [a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
+		// [a.status, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
+		// [a.buf, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // arg
+		// if (a.status != 0) {
+		// 	this.err = "Exception: " + a.buf;
+		// 	return;
+		// }
+		// return a.buf;
+	}
+	//
+	decodeHeader(uint8Arr) {
+		if (uint8Arr[0] != 0x58 || uint8Arr[1] != 0x21) { // Magic != 'X' ||  Version != '!'
+			this.err = "Unknown message Magic and Version" + uint8Arr[0] + "," +  uint8Arr[1];
+			return this.err;
+		} 
+		if (String.fromCharCode(uint8Arr[2]) == 'H' || String.fromCharCode(uint8Arr[2]) == 'B') {
+			if (uint8Arr[3] != 0 || uint8Arr[4] != 0) {
+				this.err = "Invalid Hello or Bye message";
+				return this.err;
+			}
+		}
+		let msg;
+		//  'A', 'H', 'B', 'C'
+		let type = String.fromCharCode(uint8Arr[2]);
+		switch (type) {
+			case 'H': 
+		    	msg = Object.assign(this._MessageHeader, {Type:'H'});
+		    	break;
+		    case 'B':
+		    	msg = Object.assign(this._MessageHeader, {Type:'B'});
+		    	break;
+		    case 'C':
+		    	msg = this.checkMsg(uint8Arr); // readyState: 1
+		    	break;
+		    case 'A':
+		    case 'Q':
+		    	msg = this.decodeAnswer(uint8Arr);
+		    	break;
+		    default: 
+		    	this.err = "Unknown message Type" + type;
+		}
+
+		return msg;
+	}
+}
+
+
+module.exports = {
+	MsgHeader
+}
+},{"./commonFun.js":1,"./decode.js":2,"./encode.js":3}],8:[function(require,module,exports){
 ;(function (globalObject) {
   'use strict';
 
@@ -3819,129 +3988,185 @@ module.exports = {
   }
 })(this);
 
-},{}],8:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 const commonFun = require('./commonFun.js');
 const vbsEncode = require('./encode.js');
 const vbsDecode = require('./decode.js');
+const  msgHeader  = require('./message.js').MsgHeader;
 let NoError = "";
-function ClientSocket() {
+
+function ClientSocket(ws_server) {
+
+    this.closed = false;
+    this.err = "";
+    this.connectionTimeout = null;
+    this.requestList = [];
+    this.receiveData = {};
+
 	let st = {
 		index: 0, 
 		remains: 0
 	};
-	let err = "";
-	ClientSocket.prototype.content = {  // global variable in VbsDecoder
+	this.content = {  
         pingTimes: 0,
 		OPEN: true,
 		dataList: [],
-		state: st // 同一份数据不同帧的序列号
+		state: st, // 同一份数据不同帧的序列号
+		ws_server: ''
     };
-    this.sendAndReceive = function(msg) {
-    	// Create WebSocket connection.
-		// let ws = new WebSocket('wss://echo.websocket.org');
-		// let ws = new WebSocket('ws://192.168.199.133:8888/');
-		let ws = new WebSocket('ws://192.168.199.120:8888/');
-		ws.onopen = function () {
-			console.log('ws onopen');
-			let data = msgHead(msg);
-		    ws.send(data);
+    this.connectStatus = {
+    	noConnect: 0,  // 未连接
+    	connecting: 1, // 连接中
+    	open: 2,   // 已连接可以通信
+    	closing: 3, // 关闭中
+    	closed: 4  // 已关闭
+    };
+    this.readyState  = 0;
+    let txid = 0;
+    let i = 0;
+
+    let that = this; // ClientSocket
+    let msgHead = new msgHeader();
+    
+    ClientSocket.prototype.connect = function(callback) {
+    	that.ws = new WebSocket(ws_server);
+    	
+    	that.ws.onopen = function () {		
+			if (that.readyState  == that.connectStatus.noConnect) {
+				// that.ws.send(msgHead.helloMsg('Connecting'));
+				that.ws.send(msgHead.helloMsg('H'));
+			} 
 		};
-		ws.onmessage = function (e) {
-		    console.log('ws onmessage');
-		    console.log('from server: ' + e.data);
-		    let data = getData(e.data);
-	        console.log("@@", data);
+
+		that.ws.onmessage = function (e) {
+		    console.log('ws onmessage from server: ' + e.data);
+		    let dataMsg = that.getData(e.data).then((data) => {
+		    	if (data.Type !== undefined && data.Type == 'H') {
+			    	callback(that.readyState);
+			    }
+			    if (typeof data != "undefined" && typeof data.txid != "undefined") {
+			    	that.requestList = that.requestList.filter(v => v!= data.txid); // delete txid in data.txid
+			    }
+		    }).catch((error) => {
+		    	callback(error);
+		    });
+		    
 		};
-		ws.onclose = function(evt) {
-		    console.log("Connection closed.");
+
+		that.ws.onerror = function(error) {
+			console.log("Socket error: " + error);
+	    };
+
+		that.ws.onclose = function(evt) {
+			that.closed = true;
+			that.readyState = that.connectStatus.closing;
+			console.log("Wait closing, there are");
+			if(that.requestList.length == 0) {
+	            that.readyState = that.connectStatus.closed;
+	            clearTimeout(that.connectionTimeout);
+	            console.log("Connection closed !");
+	        } else {
+	            that.connectionTimeout = setTimeout(() => {
+			        that.requestList = that.requestList.pop(); 
+		     	}, 5000);
+	        }
 		}; 
     }
-	// 封装数据
-	function msgHead(msg) {
-		// 控制位: FIN, Opcode, MASK, Payload_len
-		let preBytes = [], 
-		    // payBytes = vbsEncode.encodeVBS(msg);
-		    payBytes = vbsEncode.encodeVBS(msg);
-		let dataLength = payBytes.byteLength;
-		// 构建Frame的第一字节
-		preBytes.push(0x51);  // "Q"
-		// 处理不同长度的dataLength，构建Frame的第二字节（或第2～第8字节）
-		// 注意这里以大端字节序构建dataLength > 126的dataLenght
-		preBytes.push( // 3个字节
-		    (dataLength & 0xFF0000) >> 16,
-		    (dataLength & 0xFF00) >> 8,
-		    dataLength & 0xFF
-		);
-		let u8a =new Uint8Array(preBytes.length + dataLength);
-		u8a.set(new Uint8Array(preBytes), 0); 
-    	u8a.set(new Uint8Array(payBytes), preBytes.length);
-		return u8a.buffer;
-	}
-	function blob2abu(blob) {
-		let arrayBuffer;
-		let uint8Buf;
-		let fileReader = new FileReader();
-	    fileReader.readAsArrayBuffer(blob);
-	    fileReader.onloadend = function (e) {
-	    	if(fileReader.result === null) {
-	          err = "ReadFile unexpected this.result == null !";
-	          return;
-	        }
-			arrayBuffer = fileReader.result;
-		    uint8Buf = new Uint8Array(arrayBuffer);
-		    return uint8Buf;
-		}
-		fileReader.error = function (err) {
-			err = "Cannot read anything !";
-		}
-	}
-	// // 解析当前帧状态
-    function getState(data) {
-    	let tempData;
-    	let fileReader = new FileReader();
-		fileReader.readAsArrayBuffer(data);
-		fileReader.onload = function(e) {
-		  let arrayBuffer = fileReader.result;
-		  tempData = new Uint8Array(arrayBuffer);
+	
+    ClientSocket.prototype.sendData = function(msgBody) {
+    	if (that.readyState  == that.connectStatus.open) {
+			txid = genarateTxid();
+			let data = msgHead.questMsg(txid, "service", "method", {"d": "sdjkd"}, msgBody);	    	
+	    	that.ws.send(data);
+	    } else {
+	    	that.err = "Please connect to server or Waiting server response ";
+	    	return that.err;
 	    }
-	    fileReader.onerror = function (err) {
-			err = "Read fail :" + err;
-			return;
-		}
-
-        let fin = tempData[0];    //A
-        let payloadLength;
-        let payloadData;
-       	payloadLength = ((tempData[1] & 0xFF) << 16) | (tempData[2] & 0xFF) << 8 | (tempData[3] & 0xFF);
-
-        payloadData = vbsDecode.decodeVBS(tempData, 4);
-
-        this.state = Object.assign({}, {
-            fin,
-            payloadData,
-            payloadLength
-        });
     }
-	// 解析数据
-	// 收集本次message的所有数据
-    function getData(data) {
-        getState(data);
-        if (err != NoError) {
-        	return err;
-        }
-        // 收集本次数据流数据
-        return this.state.payloadData;  
-    }
-}
+	
+	that.close = function() {
+		return new Promise((res) => {
+			if (that.requestList.length  == 0) {
+				that.ws.send(msgHead.helloMsg('B'));
+			} else {
+				console.log("Waiting for all requests to return !");
+			}
+			if (!that.ws) {
+                console.log("Websocket already cleared", this);
+                return res();
+            }
+            if( that.ws.terminate ) {
+                that.ws.terminate();
+            }
+            else{
+                that.ws.close();
+            }
+            if (that.ws.readyState === 3) res();
+		})
+	}
 
-function webSocket(data) {
-   let client = new ClientSocket();
-   client.sendAndReceive(data);
+	function reader(data) {
+		let tempData;
+        console.log(222, Object.prototype.toString.call(data))
+		return new Promise( function(resolve, reject) {
+			let fileReader = new FileReader();
+			fileReader.onload = (e) => {
+			  let arrayBuffer = fileReader.result;
+			  tempData = new Uint8Array(arrayBuffer);
+			  resolve(tempData);
+			}			
+			fileReader.onerror = (err) => {
+				that.err = "Read fail :" + err;
+				reject(err);;
+			}
+			fileReader.readAsArrayBuffer(data);
+		});
+		
+	}
+
+	// // 解析当前帧状态
+   ClientSocket.prototype.getData = function(data) {
+    	let tempData;
+
+		let decodeMsg = reader(data).then((result) => {
+		    tempData = result;
+
+			let msg = msgHead.decodeHeader(tempData);
+
+			if (typeof msg.Type != "undefined") {
+				switch (msg.Type) {
+					case 'C':          
+						this.readyState  = 1; // 
+						break;
+					case 'H':
+						that.readyState  = 2;
+						break;
+					case 'B':
+						that.readyState  = 3;
+						that.ws.onclose();
+						break;
+				}
+			}
+			console.log("Receive data is : ", msg);
+			return msg;
+		 }).catch(function (error) {
+		    console.log(error);
+		    this.err = "Fail: " + error;
+		    return this.err;
+		});
+		return decodeMsg;
+    }
+    function genarateTxid() {
+		let min = 0, max = Math.pow(2, 64);
+		return Math.round(Math.random() * (max - min)) + min;
+	}
+
 }
 
 module.exports = {
-	webSocket
+	ClientSocket
 }
+window.ClientSocket = ClientSocket;
 
 function test() {
 	let msg = {
@@ -3961,7 +4186,10 @@ function test() {
 				{ "firstName": "Elliotte", "lastName":"Hdfld", "email": "cccc" }
 			]
 	};
-	webSocket(msg);
+	// ws://192.168.199.136:8888/
+   // ws://192.168.199.120:8888/
+   // wss://echo.websocket.org
+   let client = new ClientSocket('wss://echo.websocket.org', msg);
 }
-test();
-},{"./commonFun.js":1,"./decode.js":2,"./encode.js":3}]},{},[8]);
+// test();
+},{"./commonFun.js":1,"./decode.js":2,"./encode.js":3,"./message.js":7}]},{},[9]);
