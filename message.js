@@ -22,11 +22,10 @@ class MsgHeader {
 			txid: 0,
 			status: 0,
 			argsOff: 0,
-			buf: []
+			arg: {}
 		};
 		this.err = "";
 		this.packet = [];
-		this.status = 0;
 	}
 	fillHeader(type, len) {
 		if (len < 0) {
@@ -71,13 +70,13 @@ class MsgHeader {
 
 		let u8a = new Uint8Array(8 + len);
 
-		u8a.set(new Uint8Array(this.packet), 0)
+		u8a.set(new Uint8Array(this.packet), 0);
 		u8a.set(new Uint8Array(newTxid), 8); 
     	u8a.set(new Uint8Array(newService), 8 + newTxid.byteLength);
 		u8a.set(new Uint8Array(newMethod), 8 + n1);
 		u8a.set(new Uint8Array(newCtx), 8 + n1 + newMethod.byteLength);
 		u8a.set(new Uint8Array(newArg), 8 + n1 + n2);
-		console.log("data: ", u8a);
+
 		return u8a.buffer;
 	}
 
@@ -87,42 +86,33 @@ class MsgHeader {
 	}
 	//
 	decodeAnswer(uint8Arr) {
-		let a = Object.assign(this._Answer, {ser:"", func:"",ctx:"",arg:""});
-		let pos = 0;
-		// Test
-		[a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
-		[a.ser, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-		[a.func, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-		[a.ctx, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-		[a.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-		return a;
 		// Normal
-		// let a = this._Answer;
-		// let pos = 0;
-		// [a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
-		// [a.status, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-		// [a.buf, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // arg
-		// if (a.status != 0) {
-		// 	this.err = "Exception: " + a.buf;
-		// 	return;
-		// }
-		// return a.buf;
+		let a = this._Answer;
+		let pos = 0;
+		[a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
+		
+		[a.status, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
+
+		[a.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // arg
+		return a;
 	}
 	//
 	decodeHeader(uint8Arr) {
+		//  'A', 'H', 'B', 'C
+		let type = String.fromCharCode(uint8Arr[2]);
+		let msg;
+
 		if (uint8Arr[0] != 0x58 || uint8Arr[1] != 0x21) { // Magic != 'X' ||  Version != '!'
 			this.err = "Unknown message Magic and Version" + uint8Arr[0] + "," +  uint8Arr[1];
 			return this.err;
 		} 
-		if (String.fromCharCode(uint8Arr[2]) == 'H' || String.fromCharCode(uint8Arr[2]) == 'B') {
+		if (type == 'H' || type == 'B') {
 			if (uint8Arr[3] != 0 || uint8Arr[4] != 0) {
 				this.err = "Invalid Hello or Bye message";
 				return this.err;
 			}
 		}
-		let msg;
-		//  'A', 'H', 'B', 'C'
-		let type = String.fromCharCode(uint8Arr[2]);
+
 		switch (type) {
 			case 'H': 
 		    	msg = Object.assign(this._MessageHeader, {Type:'H'});

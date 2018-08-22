@@ -1045,11 +1045,10 @@ class MsgHeader {
 			txid: 0,
 			status: 0,
 			argsOff: 0,
-			buf: []
+			arg: {}
 		};
 		this.err = "";
 		this.packet = [];
-		this.status = 0;
 	}
 	fillHeader(type, len) {
 		if (len < 0) {
@@ -1094,13 +1093,13 @@ class MsgHeader {
 
 		let u8a = new Uint8Array(8 + len);
 
-		u8a.set(new Uint8Array(this.packet), 0)
+		u8a.set(new Uint8Array(this.packet), 0);
 		u8a.set(new Uint8Array(newTxid), 8); 
     	u8a.set(new Uint8Array(newService), 8 + newTxid.byteLength);
 		u8a.set(new Uint8Array(newMethod), 8 + n1);
 		u8a.set(new Uint8Array(newCtx), 8 + n1 + newMethod.byteLength);
 		u8a.set(new Uint8Array(newArg), 8 + n1 + n2);
-		console.log("data: ", u8a);
+
 		return u8a.buffer;
 	}
 
@@ -1110,42 +1109,33 @@ class MsgHeader {
 	}
 	//
 	decodeAnswer(uint8Arr) {
-		let a = Object.assign(this._Answer, {ser:"", func:"",ctx:"",arg:""});
-		let pos = 0;
-		// Test
-		[a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
-		[a.ser, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-		[a.func, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-		[a.ctx, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-		[a.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-		return a;
 		// Normal
-		// let a = this._Answer;
-		// let pos = 0;
-		// [a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
-		// [a.status, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-		// [a.buf, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // arg
-		// if (a.status != 0) {
-		// 	this.err = "Exception: " + a.buf;
-		// 	return;
-		// }
-		// return a.buf;
+		let a = this._Answer;
+		let pos = 0;
+		[a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
+		
+		[a.status, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
+
+		[a.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // arg
+		return a;
 	}
 	//
 	decodeHeader(uint8Arr) {
+		//  'A', 'H', 'B', 'C
+		let type = String.fromCharCode(uint8Arr[2]);
+		let msg;
+
 		if (uint8Arr[0] != 0x58 || uint8Arr[1] != 0x21) { // Magic != 'X' ||  Version != '!'
 			this.err = "Unknown message Magic and Version" + uint8Arr[0] + "," +  uint8Arr[1];
 			return this.err;
 		} 
-		if (String.fromCharCode(uint8Arr[2]) == 'H' || String.fromCharCode(uint8Arr[2]) == 'B') {
+		if (type == 'H' || type == 'B') {
 			if (uint8Arr[3] != 0 || uint8Arr[4] != 0) {
 				this.err = "Invalid Hello or Bye message";
 				return this.err;
 			}
 		}
-		let msg;
-		//  'A', 'H', 'B', 'C'
-		let type = String.fromCharCode(uint8Arr[2]);
+
 		switch (type) {
 			case 'H': 
 		    	msg = Object.assign(this._MessageHeader, {Type:'H'});
@@ -3997,7 +3987,6 @@ let NoError = "";
 
 function ClientSocket(ws_server) {
 
-    this.closed = false;
     this.err = "";
     this.connectionTimeout = null;
     this.requestList = [];
@@ -4030,17 +4019,16 @@ function ClientSocket(ws_server) {
     
     ClientSocket.prototype.connect = function(callback) {
     	that.ws = new WebSocket(ws_server);
-    	
-    	that.ws.onopen = function () {		
+
+    	that.ws.onopen = function () {	
 			if (that.readyState  == that.connectStatus.noConnect) {
-				// that.ws.send(msgHead.helloMsg('Connecting'));
 				that.ws.send(msgHead.helloMsg('H'));
 			} 
 		};
 
 		that.ws.onmessage = function (e) {
-		    console.log('ws onmessage from server: ' + e.data);
 		    let dataMsg = that.getData(e.data).then((data) => {
+		    	console.log('ws onmessage from server: ', data);
 		    	if (data.Type !== undefined && data.Type == 'H') {
 			    	callback(that.readyState);
 			    }
@@ -4049,65 +4037,82 @@ function ClientSocket(ws_server) {
 			    }
 		    }).catch((error) => {
 		    	callback(error);
-		    });
-		    
+		    });		    
 		};
 
 		that.ws.onerror = function(error) {
-			console.log("Socket error: " + error);
+			that.readyState = that.connectStatus.closing;
+			console.log("Socket error: ", error);
+			callback(that.readyState);
 	    };
 
-		that.ws.onclose = function(evt) {
-			that.closed = true;
-			that.readyState = that.connectStatus.closing;
-			console.log("Wait closing, there are");
-			if(that.requestList.length == 0) {
-	            that.readyState = that.connectStatus.closed;
-	            clearTimeout(that.connectionTimeout);
-	            console.log("Connection closed !");
-	        } else {
-	            that.connectionTimeout = setTimeout(() => {
-			        that.requestList = that.requestList.pop(); 
-		     	}, 5000);
-	        }
+		that.ws.onclose = function(evt) {	
+			that.readyState = that.connectStatus.closed;
+			console.log("connection closed!", evt);
+			callback(that.readyState);
 		}; 
     }
 	
     ClientSocket.prototype.sendData = function(msgBody) {
     	if (that.readyState  == that.connectStatus.open) {
-			txid = genarateTxid();
-			let data = msgHead.questMsg(txid, "service", "method", {"d": "sdjkd"}, msgBody);	    	
+			txid = _genarateTxid();
+			console.log("txid: ", txid);
+			let data = msgHead.questMsg(txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
 	    	that.ws.send(data);
 	    } else {
-	    	that.err = "Please connect to server or Waiting server response ";
+	    	that.err = "Please connect to server";
 	    	return that.err;
 	    }
     }
 	
-	that.close = function() {
-		return new Promise((res) => {
-			if (that.requestList.length  == 0) {
-				that.ws.send(msgHead.helloMsg('B'));
-			} else {
-				console.log("Waiting for all requests to return !");
+	// decode blob data
+    ClientSocket.prototype.getData = function(data) {
+
+		let decodeMsg = _readerBlob(data).then((result) => {
+
+			let msg = msgHead.decodeHeader(result);
+			if (typeof msg.Type != "undefined") {
+				switch (msg.Type) {
+					case 'C':          
+						that.readyState  = 1; // 
+						break;
+					case 'H':
+						that.readyState  = 2;
+						break;
+					case 'B':
+						that.ws.onclose();
+						break;
+				}
 			}
+			console.log("Receive data is : ", msg);
+			return msg;
+		 }).catch(function (error) {
+		    this.err = "Fail: " + error;
+		    return this.err;
+		});
+		return decodeMsg;
+    }
+
+    ClientSocket.prototype.close = function() {
+		return new Promise((resolve, reject) => {
 			if (!that.ws) {
-                console.log("Websocket already cleared", this);
-                return res();
+                that.err = "Websocket already cleared !";
+                return reject(that.err);
             }
             if( that.ws.terminate ) {
                 that.ws.terminate();
             }
-            else{
-                that.ws.close();
-            }
-            if (that.ws.readyState === 3) res();
+			if (that.requestList.length  == 0) {
+				that.ws.send(msgHead.helloMsg('B'));
+			} else {
+				this.err = "Waiting for all requests to return, and there are " + that.requestList.length + " number of bars without receiving";
+				return reject(this.err);
+			}
 		})
 	}
 
-	function reader(data) {
+    function _readerBlob(data) {
 		let tempData;
-        console.log(222, Object.prototype.toString.call(data))
 		return new Promise( function(resolve, reject) {
 			let fileReader = new FileReader();
 			fileReader.onload = (e) => {
@@ -4120,76 +4125,48 @@ function ClientSocket(ws_server) {
 				reject(err);;
 			}
 			fileReader.readAsArrayBuffer(data);
-		});
-		
+		});	
 	}
 
-	// // 解析当前帧状态
-   ClientSocket.prototype.getData = function(data) {
-    	let tempData;
-
-		let decodeMsg = reader(data).then((result) => {
-		    tempData = result;
-
-			let msg = msgHead.decodeHeader(tempData);
-
-			if (typeof msg.Type != "undefined") {
-				switch (msg.Type) {
-					case 'C':          
-						this.readyState  = 1; // 
-						break;
-					case 'H':
-						that.readyState  = 2;
-						break;
-					case 'B':
-						that.readyState  = 3;
-						that.ws.onclose();
-						break;
-				}
-			}
-			console.log("Receive data is : ", msg);
-			return msg;
-		 }).catch(function (error) {
-		    console.log(error);
-		    this.err = "Fail: " + error;
-		    return this.err;
-		});
-		return decodeMsg;
-    }
-    function genarateTxid() {
+    function _genarateTxid() {
 		let min = 0, max = Math.pow(2, 64);
 		return Math.round(Math.random() * (max - min)) + min;
 	}
 
 }
 
-module.exports = {
-	ClientSocket
+if (typeof(window) === 'undefined') {
+    module.exports = {
+		ClientSocket
+	}
+} else {
+    window.ClientSocket = ClientSocket;
 }
-window.ClientSocket = ClientSocket;
 
-function test() {
-	let msg = {
-			"dfhj": "dfhjdf",
-			"dfdf": "fgjg",
-			"title": "Q",
-			"longName": "李四",
-			"people": [
-				{ "firstName": "Brett", "lastName":"McLaughlin", "email": "aaaa" },
-				{ "firstName": "Jason", "lastName":"Hunter", "email": "bbbb"},
-				{ "firstName": "Elliotte", "lastName":"Harold", "email": "cccc" },
-				{ "secondName": "Brett", "lastName":"McLaughlin", "email": "aaaa" },
-				{ "secondName": "Jason", "lastName":"Hunter", "email": "bbbb"},
-				{ "secondName": "Elliotte", "lastName":"Harold", "email": "cccc" },
-				{ "firstName": "Brett", "lastName":"HJDFdfdf", "email": "aaaa" },
-				{ "firstName": "Jason", "lastName":"Hdfdf", "email": "bbbb"},
-				{ "firstName": "Elliotte", "lastName":"Hdfld", "email": "cccc" }
-			]
-	};
-	// ws://192.168.199.136:8888/
-   // ws://192.168.199.120:8888/
-   // wss://echo.websocket.org
-   let client = new ClientSocket('wss://echo.websocket.org', msg);
-}
+
+
+// function test() {
+// 	let msg = {
+// 			"dfhj": "dfhjdf",
+// 			"dfdf": "fgjg",
+// 			"title": "Q",
+// 			"longName": "李四",
+// 			"people": [
+// 				{ "firstName": "Brett", "lastName":"McLaughlin", "email": "aaaa" },
+// 				{ "firstName": "Jason", "lastName":"Hunter", "email": "bbbb"},
+// 				{ "firstName": "Elliotte", "lastName":"Harold", "email": "cccc" },
+// 				{ "secondName": "Brett", "lastName":"McLaughlin", "email": "aaaa" },
+// 				{ "secondName": "Jason", "lastName":"Hunter", "email": "bbbb"},
+// 				{ "secondName": "Elliotte", "lastName":"Harold", "email": "cccc" },
+// 				{ "firstName": "Brett", "lastName":"HJDFdfdf", "email": "aaaa" },
+// 				{ "firstName": "Jason", "lastName":"Hdfdf", "email": "bbbb"},
+// 				{ "firstName": "Elliotte", "lastName":"Hdfld", "email": "cccc" }
+// 			]
+// 	};
+// 	// ws://192.168.199.136:8888/
+//    // ws://192.168.199.120:8888/
+//    // wss://echo.websocket.org
+//    let client = new ClientSocket('ws://192.168.200.92:8888/', msg);
+// }
 // test();
 },{"./commonFun.js":1,"./decode.js":2,"./encode.js":3,"./message.js":7}]},{},[9]);

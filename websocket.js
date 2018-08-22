@@ -6,7 +6,6 @@ let NoError = "";
 
 function ClientSocket(ws_server) {
 
-    this.closed = false;
     this.err = "";
     this.connectionTimeout = null;
     this.requestList = [];
@@ -39,7 +38,7 @@ function ClientSocket(ws_server) {
     
     ClientSocket.prototype.connect = function(callback) {
     	that.ws = new WebSocket(ws_server);
-    	
+
     	that.ws.onopen = function () {	
 			if (that.readyState  == that.connectStatus.noConnect) {
 				that.ws.send(msgHead.helloMsg('H'));
@@ -47,8 +46,8 @@ function ClientSocket(ws_server) {
 		};
 
 		that.ws.onmessage = function (e) {
-		    console.log('ws onmessage from server: ' + e.data);
 		    let dataMsg = that.getData(e.data).then((data) => {
+		    	console.log('ws onmessage from server: ', data);
 		    	if (data.Type !== undefined && data.Type == 'H') {
 			    	callback(that.readyState);
 			    }
@@ -61,75 +60,44 @@ function ClientSocket(ws_server) {
 		};
 
 		that.ws.onerror = function(error) {
-			console.log("Socket error: " + error);
+			that.readyState = that.connectStatus.closing;
+			console.log("Socket error: ", error);
+			callback(that.readyState);
 	    };
 
-		that.ws.onclose = function(evt) {
-			that.closed = true;
-			that.readyState = that.connectStatus.closing;
-			console.log("Wait closing, there are");
-			if(that.requestList.length == 0) {
-	            that.readyState = that.connectStatus.closed;
-	            clearTimeout(that.connectionTimeout);
-	            console.log("Connection closed !");
-	        } else {
-	            that.connectionTimeout = setTimeout(() => {
-			        that.requestList = that.requestList.pop(); 
-		     	}, 5000);
-	        }
+		that.ws.onclose = function(evt) {	
+			that.readyState = that.connectStatus.closed;
+			console.log("connection closed!", evt);
+			callback(that.readyState);
 		}; 
     }
 	
     ClientSocket.prototype.sendData = function(msgBody) {
     	if (that.readyState  == that.connectStatus.open) {
 			txid = _genarateTxid();
-			let data = msgHead.questMsg(txid, "service", "method", {"d": "sdjkd"}, msgBody);	    	
+			let data = msgHead.questMsg(txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
 	    	that.ws.send(data);
 	    } else {
-	    	that.err = "Please connect to server or Waiting server response ";
+	    	that.err = "Please connect to server";
 	    	return that.err;
 	    }
     }
 	
-	ClientSocket.prototype.close = function() {
-		return new Promise((res) => {
-			if (that.requestList.length  == 0) {
-				that.ws.send(msgHead.helloMsg('B'));
-			} else {
-				console.log("Waiting for all requests to return !");
-			}
-			if (!that.ws) {
-                console.log("Websocket already cleared", this);
-                return res();
-            }
-            if( that.ws.terminate ) {
-                that.ws.terminate();
-            }
-            else{
-                that.ws.close();
-            }
-            if (that.ws.readyState === 3) res();
-		})
-	}
-	// // 解析当前帧状态
-   ClientSocket.prototype.getData = function(data) {
-    	let tempData;
+	// decode blob data
+    ClientSocket.prototype.getData = function(data) {
 
 		let decodeMsg = _readerBlob(data).then((result) => {
-		    tempData = result;
 
-			let msg = msgHead.decodeHeader(tempData);
-
+			let msg = msgHead.decodeHeader(result);
 			if (typeof msg.Type != "undefined") {
 				switch (msg.Type) {
 					case 'C':          
-						this.readyState  = 1; // 
+						that.readyState  = 1; // 
 						break;
 					case 'H':
 						that.readyState  = 2;
 						break;
 					case 'B':
-						that.readyState  = 3;
 						that.ws.onclose();
 						break;
 				}
@@ -137,12 +105,29 @@ function ClientSocket(ws_server) {
 			console.log("Receive data is : ", msg);
 			return msg;
 		 }).catch(function (error) {
-		    console.log(error);
 		    this.err = "Fail: " + error;
 		    return this.err;
 		});
 		return decodeMsg;
     }
+
+    ClientSocket.prototype.close = function() {
+		return new Promise((resolve, reject) => {
+			if (!that.ws) {
+                that.err = "Websocket already cleared !";
+                return reject(that.err);
+            }
+            if( that.ws.terminate ) {
+                that.ws.terminate();
+            }
+			if (that.requestList.length  == 0) {
+				that.ws.send(msgHead.helloMsg('B'));
+			} else {
+				this.err = "Waiting for all requests to return, and there are " + that.requestList.length + " number of bars without receiving";
+				return reject(this.err);
+			}
+		})
+	}
 
     function _readerBlob(data) {
 		let tempData;
@@ -158,42 +143,20 @@ function ClientSocket(ws_server) {
 				reject(err);;
 			}
 			fileReader.readAsArrayBuffer(data);
-		});
-		
+		});	
 	}
 
     function _genarateTxid() {
-		let min = 0, max = Math.pow(2, 64);
+		let min = 0, max = Math.pow(2, 53);
 		return Math.round(Math.random() * (max - min)) + min;
 	}
 
 }
 
-module.exports = {
-	ClientSocket
+if (typeof(window) === 'undefined') {
+    module.exports = {
+		ClientSocket
+	}
+} else {
+    window.ClientSocket = ClientSocket;
 }
-
-function test() {
-	let msg = {
-			"dfhj": "dfhjdf",
-			"dfdf": "fgjg",
-			"title": "Q",
-			"longName": "李四",
-			"people": [
-				{ "firstName": "Brett", "lastName":"McLaughlin", "email": "aaaa" },
-				{ "firstName": "Jason", "lastName":"Hunter", "email": "bbbb"},
-				{ "firstName": "Elliotte", "lastName":"Harold", "email": "cccc" },
-				{ "secondName": "Brett", "lastName":"McLaughlin", "email": "aaaa" },
-				{ "secondName": "Jason", "lastName":"Hunter", "email": "bbbb"},
-				{ "secondName": "Elliotte", "lastName":"Harold", "email": "cccc" },
-				{ "firstName": "Brett", "lastName":"HJDFdfdf", "email": "aaaa" },
-				{ "firstName": "Jason", "lastName":"Hdfdf", "email": "bbbb"},
-				{ "firstName": "Elliotte", "lastName":"Hdfld", "email": "cccc" }
-			]
-	};
-	// ws://192.168.199.136:8888/
-   // ws://192.168.199.120:8888/
-   // wss://echo.websocket.org
-   let client = new ClientSocket('wss://echo.websocket.org', msg);
-}
-// test();

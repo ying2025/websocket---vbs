@@ -36,14 +36,33 @@
    	 	let client;
    	 	let err = "";
    	 	let NoError = "";
+   	 	let ele = document.createElement('div');
 		function connectting() {
-			client = new ClientSocket('wss://echo.websocket.org');
-			let ele = document.createElement('div');
+			
+			if (client != undefined && client.ws.readyState == 2) {
+				ele.innerText = '【服务端 已连接】';
+				document.getElementById('info').appendChild(ele);
+				return;
+			}
+			
+			if (!window.WebSocket) {
+	            ele.innerText = "  您的浏览器不支持ws<br/>";
+	            document.getElementById('info').appendChild(ele);
+	            return;
+	        }
+		        // ws://192.168.200.93:8888/
+			   // ws://192.168.200.115:8888/
+			   // wss://echo.websocket.org
+			// client = new ClientSocket('ws://192.168.200.93:8888/');
+			client = new ClientSocket('ws://192.168.200.115:8888/');
+			
 			client.connect(function(readyState) {
 				if (readyState == 2) {
-					ele.innerText = '【服务端 连接成功】';
-				} else {
-					ele.innerText = '【服务端 连接失败】';
+					ele.innerText = '【服务端 处于正常服务】';
+				} else if (readyState == 4) {
+					ele.innerText = '【服务端 处于关闭状态】';
+				} else{
+					ele.innerText = '【服务端 处于异常服务】' + readyState;
 				}
 				document.getElementById('info').appendChild(ele);
 			});
@@ -53,18 +72,26 @@
 			let ele = document.createElement('div');
 			let txt = document.getElementById('txt');
 			let value = txt.value;
-			let innerTest = ele.innerText;
-			if (value == "") {
-				innerTest = "数据不能为空！"
-				txt.value = '';
+			if (client == undefined) {
+				ele.innerText = "未连接服务器，请先连接服务器！";
 	        	document.getElementById('info').appendChild(ele);
+	        	return;
+			}
+			if (value == "") {
+				ele.innerText = "数据不能为空！";
+	        	document.getElementById('info').appendChild(ele);
+	        	return;
 			}
 			client.sendData(txt.value);
 			client.ws.onmessage = (result) => {
 				let dataMsg = client.getData(result.data).then((data) => {
+					console.log("Rece data", data);
+					if (!data.hasOwnProperty("arg")) {
+						return;
+					}
 			    	ele.innerText = '【接收到数据】' + data.arg;
 			    }).catch((error) => {
-			    	ele.innerText = '【接收到的数据】' + error;
+			    	ele.innerText = '【接收到异常数据为】' + error;
 			    });
 			    document.getElementById('info').appendChild(ele);
 			}
@@ -73,9 +100,18 @@
 
 		function closeConn() {
 			let ele = document.createElement('div');
-			client.close(); //发送数据
-	        ele.innerText = '【客户端 连接关闭】';
-	        document.getElementById('info').appendChild(ele);
+			if (client == undefined || (client.readyState == 4)) {
+				return;
+			}
+			client.close().then((result) => {
+				console.log("closing : " ,result);
+				ele.innerText = '【客户端 连接关闭】';
+				document.getElementById('info').appendChild(ele);
+			}).catch((error) => {
+				ele.innerText = '【客户端 连接关闭失败】' + error;
+				 document.getElementById('info').appendChild(ele);
+			}); 
+	       
 		}
    </script>
    
