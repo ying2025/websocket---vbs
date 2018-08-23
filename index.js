@@ -1,4 +1,190 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+// shim for using process in browser
+var process = module.exports = {};
+
+// cached from whatever global is present so that test runners that stub it
+// don't break things.  But we need to wrap it in a try catch in case it is
+// wrapped in strict mode code which doesn't define any globals.  It's inside a
+// function because try/catches deoptimize in certain engines.
+
+var cachedSetTimeout;
+var cachedClearTimeout;
+
+function defaultSetTimout() {
+    throw new Error('setTimeout has not been defined');
+}
+function defaultClearTimeout () {
+    throw new Error('clearTimeout has not been defined');
+}
+(function () {
+    try {
+        if (typeof setTimeout === 'function') {
+            cachedSetTimeout = setTimeout;
+        } else {
+            cachedSetTimeout = defaultSetTimout;
+        }
+    } catch (e) {
+        cachedSetTimeout = defaultSetTimout;
+    }
+    try {
+        if (typeof clearTimeout === 'function') {
+            cachedClearTimeout = clearTimeout;
+        } else {
+            cachedClearTimeout = defaultClearTimeout;
+        }
+    } catch (e) {
+        cachedClearTimeout = defaultClearTimeout;
+    }
+} ())
+function runTimeout(fun) {
+    if (cachedSetTimeout === setTimeout) {
+        //normal enviroments in sane situations
+        return setTimeout(fun, 0);
+    }
+    // if setTimeout wasn't available but was latter defined
+    if ((cachedSetTimeout === defaultSetTimout || !cachedSetTimeout) && setTimeout) {
+        cachedSetTimeout = setTimeout;
+        return setTimeout(fun, 0);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedSetTimeout(fun, 0);
+    } catch(e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't trust the global object when called normally
+            return cachedSetTimeout.call(null, fun, 0);
+        } catch(e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error
+            return cachedSetTimeout.call(this, fun, 0);
+        }
+    }
+
+
+}
+function runClearTimeout(marker) {
+    if (cachedClearTimeout === clearTimeout) {
+        //normal enviroments in sane situations
+        return clearTimeout(marker);
+    }
+    // if clearTimeout wasn't available but was latter defined
+    if ((cachedClearTimeout === defaultClearTimeout || !cachedClearTimeout) && clearTimeout) {
+        cachedClearTimeout = clearTimeout;
+        return clearTimeout(marker);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedClearTimeout(marker);
+    } catch (e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't  trust the global object when called normally
+            return cachedClearTimeout.call(null, marker);
+        } catch (e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error.
+            // Some versions of I.E. have different rules for clearTimeout vs setTimeout
+            return cachedClearTimeout.call(this, marker);
+        }
+    }
+
+
+
+}
+var queue = [];
+var draining = false;
+var currentQueue;
+var queueIndex = -1;
+
+function cleanUpNextTick() {
+    if (!draining || !currentQueue) {
+        return;
+    }
+    draining = false;
+    if (currentQueue.length) {
+        queue = currentQueue.concat(queue);
+    } else {
+        queueIndex = -1;
+    }
+    if (queue.length) {
+        drainQueue();
+    }
+}
+
+function drainQueue() {
+    if (draining) {
+        return;
+    }
+    var timeout = runTimeout(cleanUpNextTick);
+    draining = true;
+
+    var len = queue.length;
+    while(len) {
+        currentQueue = queue;
+        queue = [];
+        while (++queueIndex < len) {
+            if (currentQueue) {
+                currentQueue[queueIndex].run();
+            }
+        }
+        queueIndex = -1;
+        len = queue.length;
+    }
+    currentQueue = null;
+    draining = false;
+    runClearTimeout(timeout);
+}
+
+process.nextTick = function (fun) {
+    var args = new Array(arguments.length - 1);
+    if (arguments.length > 1) {
+        for (var i = 1; i < arguments.length; i++) {
+            args[i - 1] = arguments[i];
+        }
+    }
+    queue.push(new Item(fun, args));
+    if (queue.length === 1 && !draining) {
+        runTimeout(drainQueue);
+    }
+};
+
+// v8 likes predictible objects
+function Item(fun, array) {
+    this.fun = fun;
+    this.array = array;
+}
+Item.prototype.run = function () {
+    this.fun.apply(null, this.array);
+};
+process.title = 'browser';
+process.browser = true;
+process.env = {};
+process.argv = [];
+process.version = ''; // empty string to avoid regexp issues
+process.versions = {};
+
+function noop() {}
+
+process.on = noop;
+process.addListener = noop;
+process.once = noop;
+process.off = noop;
+process.removeListener = noop;
+process.removeAllListeners = noop;
+process.emit = noop;
+process.prependListener = noop;
+process.prependOnceListener = noop;
+
+process.listeners = function (name) { return [] }
+
+process.binding = function (name) {
+    throw new Error('process.binding is not supported');
+};
+
+process.cwd = function () { return '/' };
+process.chdir = function (dir) {
+    throw new Error('process.chdir is not supported');
+};
+process.umask = function() { return 0; };
+
+},{}],2:[function(require,module,exports){
 // judeg obj whether is integer
 function isInteger(obj) {
     return typeof obj === 'number' && (obj % 1 === 0);
@@ -94,7 +280,7 @@ module.exports = {
     judgeIsBasicType
 }
 
-},{}],2:[function(require,module,exports){
+},{}],3:[function(require,module,exports){
 const kindConst    =   require('./kind.js');
 const floatOperate =   require('./float.js');
 const commonFun    =   require('./commonFun.js');
@@ -602,7 +788,7 @@ module.exports = {
     decodeVBS
 }
 
-},{"./commonFun.js":1,"./float.js":4,"./kind.js":5,"./limits.js":6,"bignumber.js":8}],3:[function(require,module,exports){
+},{"./commonFun.js":2,"./float.js":5,"./kind.js":6,"./limits.js":7,"bignumber.js":9}],4:[function(require,module,exports){
 const kindConst  =    require('./kind.js');
 const floatOperate =  require('./float.js');
 const commonFun = require('./commonFun.js');
@@ -867,7 +1053,7 @@ module.exports = {
 
 
 
-},{"./commonFun.js":1,"./float.js":4,"./kind.js":5}],4:[function(require,module,exports){
+},{"./commonFun.js":2,"./float.js":5,"./kind.js":6}],5:[function(require,module,exports){
 var   bigNumber    =   require('bignumber.js');
 const flt_ZERO_ZERO = 0;    // 0.0 js不区分
 const flt_ZERO      = 1;    // +0.0 or -0.0  js不区分
@@ -980,7 +1166,7 @@ module.exports = {
 }
 
 
-},{"bignumber.js":8}],5:[function(require,module,exports){
+},{"bignumber.js":9}],6:[function(require,module,exports){
 // identifier different type
 const vbsKind = {
 	VBS_TAIL: 0x01,
@@ -1005,7 +1191,7 @@ module.exports = {
 	VBS_DESCRIPTOR_MAX,
 	VBS_SPECIAL_DESCRIPTOR
 }
-},{}],6:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 const  MaxLength = 0;	// <= 0 means no limits
 
 var MaxStringLength = 1<<31 - 1;
@@ -1020,7 +1206,7 @@ module.exports = {
     MaxDepth,
     MaxInt64
 }
-},{}],7:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 const vbsEncode = require('./encode.js');
 const vbsDecode = require('./decode.js');
 const commonFun = require('./commonFun.js');
@@ -1067,13 +1253,13 @@ class MsgHeader {
 		this.packet[6] = (len >> 8) & 0xFF;
 		this.packet[7] = len & 0xFF;
 	}
-	helloMsg(type) {
+	packMsg(type) {
 		this.fillHeader(type, 0);	
 		let u8a = new Uint8Array(this.packet);
 		return u8a.buffer;
 	}
 
-	questMsg(txid, service, method, ctx, args) {
+	packQuest(txid, service, method, ctx, args) {
 		let q = this._Quest;
 		q.txid = txid;
 		if (q.txid < 0) {
@@ -1093,7 +1279,7 @@ class MsgHeader {
 
 		let u8a = new Uint8Array(8 + len);
 
-		u8a.set(new Uint8Array(this.packet), 0);
+		u8a.set(this.packet, 0);
 		u8a.set(new Uint8Array(newTxid), 8); 
     	u8a.set(new Uint8Array(newService), 8 + newTxid.byteLength);
 		u8a.set(new Uint8Array(newMethod), 8 + n1);
@@ -1104,24 +1290,37 @@ class MsgHeader {
 	}
 
 	// TODO encryption
-	checkMsg(uint8Arr) {
+	unpackCheck(uint8Arr) {
 		
 	}
 	//
-	decodeAnswer(uint8Arr) {
+	unpackAnswer(uint8Arr) {
 		// Normal
-		let a = this._Answer;
+		this._MessageHeader.Type = 'A';
+		let a = Object.assign(this._MessageHeader, this._Answer);
+		// let a = this._Answer;
+		let len = ((uint8Arr[4] & 0xFF) << 24) + ((uint8Arr[5] & 0xFF) << 16) + ((uint8Arr[6] & 0xFF) << 8) + (uint8Arr[7] & 0xFF);
 		let pos = 0;
 		[a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
 		
 		[a.status, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 
 		[a.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // arg
-		return a;
+		if (8+len == pos) { // Decode Right
+			return a;
+		} else {
+			this.err = "Decode message error, the length of encode byte dissatisfy VBS Requirement!";
+			return this.err;
+		}
+		
 	}
 	//
 	decodeHeader(uint8Arr) {
 		//  'A', 'H', 'B', 'C
+		if (uint8Arr == undefined || uint8Arr.length < 8) {
+			this.err = "The length of message is less than 8 bytes !";
+			return this.err;
+		}
 		let type = String.fromCharCode(uint8Arr[2]);
 		let msg;
 
@@ -1144,16 +1343,14 @@ class MsgHeader {
 		    	msg = Object.assign(this._MessageHeader, {Type:'B'});
 		    	break;
 		    case 'C':
-		    	msg = this.checkMsg(uint8Arr); // readyState: 1
+		    	msg = this.unpackCheck(uint8Arr); // readyState: 1
 		    	break;
 		    case 'A':
-		    case 'Q':
-		    	msg = this.decodeAnswer(uint8Arr);
+		    	msg = this.unpackAnswer(uint8Arr);
 		    	break;
 		    default: 
 		    	this.err = "Unknown message Type" + type;
 		}
-
 		return msg;
 	}
 }
@@ -1162,7 +1359,7 @@ class MsgHeader {
 module.exports = {
 	MsgHeader
 }
-},{"./commonFun.js":1,"./decode.js":2,"./encode.js":3}],8:[function(require,module,exports){
+},{"./commonFun.js":2,"./decode.js":3,"./encode.js":4}],9:[function(require,module,exports){
 ;(function (globalObject) {
   'use strict';
 
@@ -3978,13 +4175,29 @@ module.exports = {
   }
 })(this);
 
-},{}],9:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
+'use strict';
+
+module.exports = function () {
+  throw new Error(
+    'ws does not work in the browser. Browser clients must use the native ' +
+      'WebSocket object'
+  );
+};
+
+},{}],11:[function(require,module,exports){
+(function (process){
 const commonFun = require('./commonFun.js');
 const vbsEncode = require('./encode.js');
 const vbsDecode = require('./decode.js');
 const  msgHeader  = require('./message.js').MsgHeader;
 let NoError = "";
-
+let WebSocketClient;
+if (typeof WebSocket == "undefined" && !process.env.browser) {
+	WebSocketClient = require("ws");
+} else {
+	WebSocketClient = WebSocket;
+}
 function ClientSocket(ws_server) {
 
     this.err = "";
@@ -3996,13 +4209,6 @@ function ClientSocket(ws_server) {
 		index: 0, 
 		remains: 0
 	};
-	this.content = {  
-        pingTimes: 0,
-		OPEN: true,
-		dataList: [],
-		state: st, // 同一份数据不同帧的序列号
-		ws_server: ''
-    };
     this.connectStatus = {
     	noConnect: 0,  // 未连接
     	connecting: 1, // 连接中
@@ -4010,20 +4216,27 @@ function ClientSocket(ws_server) {
     	closing: 3, // 关闭中
     	closed: 4  // 已关闭
     };
-    this.readyState  = 0;
-    let txid = 0;
+    this.readyState  = 1;
+    this.txid = 0;
+
     let i = 0;
+    this.lockReconnect = false; 
+    this.reconnectionAttempted = 0;
 
     let that = this; // ClientSocket
-    let msgHead = new msgHeader();
+    that.msgHead = new msgHeader();
     
     ClientSocket.prototype.connect = function(callback) {
-    	that.ws = new WebSocket(ws_server);
-
+    	try {
+    	    that.ws = new WebSocketClient(ws_server);
+    	} catch (error) {
+    		that.ws = {readState: 3,close:() => {}}; // DISCONNECTED
+    		return new Error("Invalid url", ws_server, " closed !");
+    	}
+    	// that.ws.binaryType = 'arraybuffer';
     	that.ws.onopen = function () {	
-			if (that.readyState  == that.connectStatus.noConnect) {
-				that.ws.send(msgHead.helloMsg('H'));
-			} 
+    		that.reconnectionAttempted = 0;
+			that.ws.send(that.msgHead.packMsg('H'));
 		};
 
 		that.ws.onmessage = function (e) {
@@ -4031,9 +4244,6 @@ function ClientSocket(ws_server) {
 		    	console.log('ws onmessage from server: ', data);
 		    	if (data.Type !== undefined && data.Type == 'H') {
 			    	callback(that.readyState);
-			    }
-			    if (typeof data != "undefined" && typeof data.txid != "undefined") {
-			    	that.requestList = that.requestList.filter(v => v!= data.txid); // delete txid in data.txid
 			    }
 		    }).catch((error) => {
 		    	callback(error);
@@ -4049,16 +4259,29 @@ function ClientSocket(ws_server) {
 		that.ws.onclose = function(evt) {	
 			that.readyState = that.connectStatus.closed;
 			console.log("connection closed!", evt);
+			// Abnormal closure, auto reconnect to server if it is 
+			if (evt.code != 1000 && that.lockReconnect && that.reconnectionAttempted == 0) {
+				if (that.ws.readyState == that.ws.CLOSED) { 
+					that.reconnectionAttempted++;
+					that.ws = undefined;
+					setTimeout(() => {
+						that.connect(() => {});
+						that.lockReconnect = false;
+						console.log("Reconnect start: ", that.reconnectionAttempted);
+					}, Math.floor(Math.random() * 4000));
+				}
+			} 
 			callback(that.readyState);
 		}; 
     }
 	
     ClientSocket.prototype.sendData = function(msgBody) {
     	if (that.readyState  == that.connectStatus.open) {
-			txid = _genarateTxid();
-			console.log("txid: ", txid);
-			let data = msgHead.questMsg(txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
+			let txid = _genarateTxid();
+			
+			let data = that.msgHead.packQuest(txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
 	    	that.ws.send(data);
+	    	that.requestList[i++] = txid;
 	    } else {
 	    	that.err = "Please connect to server";
 	    	return that.err;
@@ -4069,26 +4292,29 @@ function ClientSocket(ws_server) {
     ClientSocket.prototype.getData = function(data) {
 
 		let decodeMsg = _readerBlob(data).then((result) => {
-
-			let msg = msgHead.decodeHeader(result);
+			let msg = that.msgHead.decodeHeader(result);
 			if (typeof msg.Type != "undefined") {
 				switch (msg.Type) {
 					case 'C':          
 						that.readyState  = 1; // 
 						break;
 					case 'H':
-						that.readyState  = 2;
+						that.readyState  = 2; // Can send message
 						break;
 					case 'B':
 						that.ws.onclose();
 						break;
+					case 'A':
+						// TODO
+						that.requestList = that.requestList.filter(v => v!= msg.txid);
+						i--;
+						break;
 				}
 			}
-			console.log("Receive data is : ", msg);
+		    console.log("Remaining request : ", that.requestList.length);
 			return msg;
 		 }).catch(function (error) {
-		    this.err = "Fail: " + error;
-		    return this.err;
+		    return error;
 		});
 		return decodeMsg;
     }
@@ -4102,13 +4328,14 @@ function ClientSocket(ws_server) {
             if( that.ws.terminate ) {
                 that.ws.terminate();
             }
-			if (that.requestList.length  == 0) {
-				that.ws.send(msgHead.helloMsg('B'));
+			if (that.requestList.length == 0) {
+				that.lockReconnect = false;
+				that.ws.send(that.msgHead.packMsg('B'));
 			} else {
 				this.err = "Waiting for all requests to return, and there are " + that.requestList.length + " number of bars without receiving";
 				return reject(this.err);
 			}
-		})
+		});
 	}
 
     function _readerBlob(data) {
@@ -4129,8 +4356,7 @@ function ClientSocket(ws_server) {
 	}
 
     function _genarateTxid() {
-		let min = 0, max = Math.pow(2, 64);
-		return Math.round(Math.random() * (max - min)) + min;
+		return that.txid++;
 	}
 
 }
@@ -4143,30 +4369,5 @@ if (typeof(window) === 'undefined') {
     window.ClientSocket = ClientSocket;
 }
 
-
-
-// function test() {
-// 	let msg = {
-// 			"dfhj": "dfhjdf",
-// 			"dfdf": "fgjg",
-// 			"title": "Q",
-// 			"longName": "李四",
-// 			"people": [
-// 				{ "firstName": "Brett", "lastName":"McLaughlin", "email": "aaaa" },
-// 				{ "firstName": "Jason", "lastName":"Hunter", "email": "bbbb"},
-// 				{ "firstName": "Elliotte", "lastName":"Harold", "email": "cccc" },
-// 				{ "secondName": "Brett", "lastName":"McLaughlin", "email": "aaaa" },
-// 				{ "secondName": "Jason", "lastName":"Hunter", "email": "bbbb"},
-// 				{ "secondName": "Elliotte", "lastName":"Harold", "email": "cccc" },
-// 				{ "firstName": "Brett", "lastName":"HJDFdfdf", "email": "aaaa" },
-// 				{ "firstName": "Jason", "lastName":"Hdfdf", "email": "bbbb"},
-// 				{ "firstName": "Elliotte", "lastName":"Hdfld", "email": "cccc" }
-// 			]
-// 	};
-// 	// ws://192.168.199.136:8888/
-//    // ws://192.168.199.120:8888/
-//    // wss://echo.websocket.org
-//    let client = new ClientSocket('ws://192.168.200.92:8888/', msg);
-// }
-// test();
-},{"./commonFun.js":1,"./decode.js":2,"./encode.js":3,"./message.js":7}]},{},[9]);
+}).call(this,require('_process'))
+},{"./commonFun.js":2,"./decode.js":3,"./encode.js":4,"./message.js":8,"_process":1,"ws":10}]},{},[11]);

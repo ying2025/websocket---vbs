@@ -44,13 +44,13 @@ class MsgHeader {
 		this.packet[6] = (len >> 8) & 0xFF;
 		this.packet[7] = len & 0xFF;
 	}
-	helloMsg(type) {
+	packMsg(type) {
 		this.fillHeader(type, 0);	
 		let u8a = new Uint8Array(this.packet);
 		return u8a.buffer;
 	}
 
-	questMsg(txid, service, method, ctx, args) {
+	packQuest(txid, service, method, ctx, args) {
 		let q = this._Quest;
 		q.txid = txid;
 		if (q.txid < 0) {
@@ -70,7 +70,7 @@ class MsgHeader {
 
 		let u8a = new Uint8Array(8 + len);
 
-		u8a.set(new Uint8Array(this.packet), 0);
+		u8a.set(this.packet, 0);
 		u8a.set(new Uint8Array(newTxid), 8); 
     	u8a.set(new Uint8Array(newService), 8 + newTxid.byteLength);
 		u8a.set(new Uint8Array(newMethod), 8 + n1);
@@ -81,24 +81,37 @@ class MsgHeader {
 	}
 
 	// TODO encryption
-	checkMsg(uint8Arr) {
+	unpackCheck(uint8Arr) {
 		
 	}
 	//
-	decodeAnswer(uint8Arr) {
+	unpackAnswer(uint8Arr) {
 		// Normal
-		let a = this._Answer;
+		this._MessageHeader.Type = 'A';
+		let a = Object.assign(this._MessageHeader, this._Answer);
+		// let a = this._Answer;
+		let len = ((uint8Arr[4] & 0xFF) << 24) + ((uint8Arr[5] & 0xFF) << 16) + ((uint8Arr[6] & 0xFF) << 8) + (uint8Arr[7] & 0xFF);
 		let pos = 0;
 		[a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
 		
 		[a.status, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 
 		[a.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // arg
-		return a;
+		if (8+len == pos) { // Decode Right
+			return a;
+		} else {
+			this.err = "Decode message error, the length of encode byte dissatisfy VBS Requirement!";
+			return this.err;
+		}
+		
 	}
 	//
 	decodeHeader(uint8Arr) {
 		//  'A', 'H', 'B', 'C
+		if (uint8Arr == undefined || uint8Arr.length < 8) {
+			this.err = "The length of message is less than 8 bytes !";
+			return this.err;
+		}
 		let type = String.fromCharCode(uint8Arr[2]);
 		let msg;
 
@@ -121,16 +134,14 @@ class MsgHeader {
 		    	msg = Object.assign(this._MessageHeader, {Type:'B'});
 		    	break;
 		    case 'C':
-		    	msg = this.checkMsg(uint8Arr); // readyState: 1
+		    	msg = this.unpackCheck(uint8Arr); // readyState: 1
 		    	break;
 		    case 'A':
-		    case 'Q':
-		    	msg = this.decodeAnswer(uint8Arr);
+		    	msg = this.unpackAnswer(uint8Arr);
 		    	break;
 		    default: 
 		    	this.err = "Unknown message Type" + type;
 		}
-
 		return msg;
 	}
 }

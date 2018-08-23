@@ -39,7 +39,7 @@
    	 	let ele = document.createElement('div');
 		function connectting() {
 			
-			if (client != undefined && client.ws.readyState == 2) {
+			if (client != undefined && client.readyState == 2) {
 				ele.innerText = '【服务端 已连接】';
 				document.getElementById('info').appendChild(ele);
 				return;
@@ -54,8 +54,7 @@
 			   // ws://192.168.200.115:8888/
 			   // wss://echo.websocket.org
 			// client = new ClientSocket('ws://192.168.200.93:8888/');
-			client = new ClientSocket('ws://192.168.200.115:8888/');
-			
+			client = new ClientSocket('ws://192.168.200.113:8888/');
 			client.connect(function(readyState) {
 				if (readyState == 2) {
 					ele.innerText = '【服务端 处于正常服务】';
@@ -101,14 +100,16 @@
 		function closeConn() {
 			let ele = document.createElement('div');
 			if (client == undefined || (client.readyState == 4)) {
+				ele.innerText = '【客户端 已断开连接】';
+				document.getElementById('info').appendChild(ele);
 				return;
 			}
 			client.close().then((result) => {
 				console.log("closing : " ,result);
-				ele.innerText = '【客户端 连接关闭】';
+				ele.innerText = '【客户端 关闭连接】';
 				document.getElementById('info').appendChild(ele);
 			}).catch((error) => {
-				ele.innerText = '【客户端 连接关闭失败】' + error;
+				ele.innerText = '【客户端 关闭连接失败】' + error;
 				 document.getElementById('info').appendChild(ele);
 			}); 
 	       

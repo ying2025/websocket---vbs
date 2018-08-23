@@ -3,7 +3,12 @@ const vbsEncode = require('./encode.js');
 const vbsDecode = require('./decode.js');
 const  msgHeader  = require('./message.js').MsgHeader;
 let NoError = "";
-
+let WebSocketClient;
+if (typeof WebSocket == "undefined" && !process.env.browser) {
+	WebSocketClient = require("ws");
+} else {
+	WebSocketClient = WebSocket;
+}
 function ClientSocket(ws_server) {
 
     this.err = "";
@@ -15,13 +20,6 @@ function ClientSocket(ws_server) {
 		index: 0, 
 		remains: 0
 	};
-	this.content = {  
-        pingTimes: 0,
-		OPEN: true,
-		dataList: [],
-		state: st, // 同一份数据不同帧的序列号
-		ws_server: ''
-    };
     this.connectStatus = {
     	noConnect: 0,  // 未连接
     	connecting: 1, // 连接中
@@ -29,20 +27,27 @@ function ClientSocket(ws_server) {
     	closing: 3, // 关闭中
     	closed: 4  // 已关闭
     };
-    this.readyState  = 0;
-    let txid = 0;
+    this.readyState  = 1;
+    this.txid = 0;
+
     let i = 0;
+    this.lockReconnect = false; 
+    this.reconnectionAttempted = 0;
 
     let that = this; // ClientSocket
-    let msgHead = new msgHeader();
+    that.msgHead = new msgHeader();
     
     ClientSocket.prototype.connect = function(callback) {
-    	that.ws = new WebSocket(ws_server);
-
+    	try {
+    	    that.ws = new WebSocketClient(ws_server);
+    	} catch (error) {
+    		that.ws = {readState: 3,close:() => {}}; // DISCONNECTED
+    		return new Error("Invalid url", ws_server, " closed !");
+    	}
+    	// that.ws.binaryType = 'arraybuffer';
     	that.ws.onopen = function () {	
-			if (that.readyState  == that.connectStatus.noConnect) {
-				that.ws.send(msgHead.helloMsg('H'));
-			} 
+    		that.reconnectionAttempted = 0;
+			that.ws.send(that.msgHead.packMsg('H'));
 		};
 
 		that.ws.onmessage = function (e) {
@@ -50,9 +55,6 @@ function ClientSocket(ws_server) {
 		    	console.log('ws onmessage from server: ', data);
 		    	if (data.Type !== undefined && data.Type == 'H') {
 			    	callback(that.readyState);
-			    }
-			    if (typeof data != "undefined" && typeof data.txid != "undefined") {
-			    	that.requestList = that.requestList.filter(v => v!= data.txid); // delete txid in data.txid
 			    }
 		    }).catch((error) => {
 		    	callback(error);
@@ -68,15 +70,29 @@ function ClientSocket(ws_server) {
 		that.ws.onclose = function(evt) {	
 			that.readyState = that.connectStatus.closed;
 			console.log("connection closed!", evt);
+			// Abnormal closure, auto reconnect to server if it is 
+			if (evt.code != 1000 && that.lockReconnect && that.reconnectionAttempted == 0) {
+				if (that.ws.readyState == that.ws.CLOSED) { 
+					that.reconnectionAttempted++;
+					that.ws = undefined;
+					setTimeout(() => {
+						that.connect(() => {});
+						that.lockReconnect = false;
+						console.log("Reconnect start: ", that.reconnectionAttempted);
+					}, Math.floor(Math.random() * 4000));
+				}
+			} 
 			callback(that.readyState);
 		}; 
     }
 	
     ClientSocket.prototype.sendData = function(msgBody) {
     	if (that.readyState  == that.connectStatus.open) {
-			txid = _genarateTxid();
-			let data = msgHead.questMsg(txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
+			let txid = _genarateTxid();
+			
+			let data = that.msgHead.packQuest(txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
 	    	that.ws.send(data);
+	    	that.requestList[i++] = txid;
 	    } else {
 	    	that.err = "Please connect to server";
 	    	return that.err;
@@ -87,26 +103,29 @@ function ClientSocket(ws_server) {
     ClientSocket.prototype.getData = function(data) {
 
 		let decodeMsg = _readerBlob(data).then((result) => {
-
-			let msg = msgHead.decodeHeader(result);
+			let msg = that.msgHead.decodeHeader(result);
 			if (typeof msg.Type != "undefined") {
 				switch (msg.Type) {
 					case 'C':          
 						that.readyState  = 1; // 
 						break;
 					case 'H':
-						that.readyState  = 2;
+						that.readyState  = 2; // Can send message
 						break;
 					case 'B':
 						that.ws.onclose();
 						break;
+					case 'A':
+						// TODO
+						that.requestList = that.requestList.filter(v => v!= msg.txid);
+						i--;
+						break;
 				}
 			}
-			console.log("Receive data is : ", msg);
+		    console.log("Remaining request : ", that.requestList.length);
 			return msg;
 		 }).catch(function (error) {
-		    this.err = "Fail: " + error;
-		    return this.err;
+		    return error;
 		});
 		return decodeMsg;
     }
@@ -120,13 +139,14 @@ function ClientSocket(ws_server) {
             if( that.ws.terminate ) {
                 that.ws.terminate();
             }
-			if (that.requestList.length  == 0) {
-				that.ws.send(msgHead.helloMsg('B'));
+			if (that.requestList.length == 0) {
+				that.lockReconnect = false;
+				that.ws.send(that.msgHead.packMsg('B'));
 			} else {
 				this.err = "Waiting for all requests to return, and there are " + that.requestList.length + " number of bars without receiving";
 				return reject(this.err);
 			}
-		})
+		});
 	}
 
     function _readerBlob(data) {
@@ -147,8 +167,7 @@ function ClientSocket(ws_server) {
 	}
 
     function _genarateTxid() {
-		let min = 0, max = Math.pow(2, 53);
-		return Math.round(Math.random() * (max - min)) + min;
+		return that.txid++;
 	}
 
 }
