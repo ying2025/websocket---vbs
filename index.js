@@ -4260,7 +4260,7 @@ function ClientSocket(ws_server) {
 			that.readyState = that.connectStatus.closed;
 			console.log("connection closed!", evt);
 			// Abnormal closure, auto reconnect to server if it is 
-			if (evt.code != 1000 && that.lockReconnect && that.reconnectionAttempted == 0) {
+			if (that.lockReconnect && that.reconnectionAttempted == 0) {
 				if (that.ws.readyState == that.ws.CLOSED) { 
 					that.reconnectionAttempted++;
 					that.ws = undefined;
