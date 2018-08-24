@@ -4305,11 +4305,14 @@ function ClientSocket(ws_server) {
 						that.readyState  = 2; // Can send message
 						break;
 					case 'B':
-						_byeClose();
+						_graceClose();
 						break;
 					case 'A':
-						// TODO
+						// TODO 
 						that.requestNumber = that.requestNumber.filter(v => v!= msg.txid);
+						if (that.requestNumber.length == 0) {
+					    	clearInterval(resendTimer);
+						}
 						break;
 				}
 			}
@@ -4334,28 +4337,19 @@ function ClientSocket(ws_server) {
 				that.lockReconnect = false;
 				that.ws.send(that.msgHead.packMsg('B'));
 			} else {
-				_byeClose();
+				_graceClose();
 				// this.err = "Waiting for all requests to return, and there are " + that.requestNumber.length + " number of bars without receiving";
 				// return reject(this.err);
 			}
 		});
 	}
 
-	function _byeClose() {
+	function _graceClose() {
 		let len = that.requestNumber.length;
 		if (len != 0) {
 			// According the txid sequence to find the data
 			let waitSendMsg = [];
-			// if (!Array.indexOf) {  
-			//     Array.prototype.indexOf = function (obj) {  
-			//         for (var i = 0; i < this.length; i++) {  
-			//             if (this[i] == obj) {  
-			//                 return i;  
-			//             }  
-			//         }  
-			//         return -1;  
-			//     }  
-			// } 
+
 			that.requestList.filter((v, j) => {
 				if (that.requestNumber.indexOf(j) != -1) {
 					waitSendMsg.push(Object.values(v));
@@ -4366,10 +4360,11 @@ function ClientSocket(ws_server) {
 				if (k >= waitSendMsg.length) {
 			    	clearInterval(resendTimer);
 			    	return;
-				}
+				}				
 				that.ws.send(waitSendMsg[k++]);
-				console.log("There are still need to send time :", len - k);
-			}, 5000);
+				console.log("There are still need to send time :", len - k - 1);
+				k++;
+			}, 1000);
 		} else {
 			that.lockReconnect = false;
 			that.ws.onclose();
