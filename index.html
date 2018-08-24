@@ -54,8 +54,8 @@
 			   // ws://192.168.200.115:8888/
 			   // wss://echo.websocket.org
 			// client = new ClientSocket('ws://192.168.200.93:8888/');
-			client = new ClientSocket('ws://192.168.200.113:8888/');
-			client.connect(function(readyState) {
+			client = new ClientSocket();
+			client.connect('ws://192.168.200.113:8888/', function(readyState) {
 				if (readyState == 2) {
 					ele.innerText = '【服务端 处于正常服务】';
 				} else if (readyState == 4) {

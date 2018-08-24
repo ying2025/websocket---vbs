@@ -4198,25 +4198,25 @@ if (typeof WebSocket == "undefined" && !process.env.browser) {
 } else {
 	WebSocketClient = WebSocket;
 }
-function ClientSocket(ws_server) {
+function ClientSocket() {
 	let resendTimer = null;
     this.err = "";
     this.requestNumber = []; // record the request txid sequence
-    this.receiveData = {};
     this.requestList = []; // record the request txid and data sequence
+    this.url = '';
 
 	let st = {
 		index: 0, 
 		remains: 0
 	};
     this.connectStatus = {
-    	noConnect: 0,  // 未连接
+    	noConnect: 0,  //  yet connect
     	connecting: 1, // connecting
-    	open: 2,   // 已连接可以通信
-    	closing: 3, // 关闭中
-    	closed: 4  // 已关闭
+    	open: 2,   // open and ready to communicate.
+    	closing: 3, // closing
+    	closed: 4  // closed
     };
-    this.readyState  = 1;
+    this.readyState  = 1; 
     this.txid = 0;
 
     let i = 0;
@@ -4225,15 +4225,21 @@ function ClientSocket(ws_server) {
 
     let that = this; // ClientSocket
     that.msgHead = new msgHeader();
-    
-    ClientSocket.prototype.connect = function(callback) {
+
+    /**
+     *  @dev connect
+     *  Fun: Init the websocket connection and the relavant event.
+     *  @param {ws_server} Server Url.
+     *  @param {callback} Callbacl Function, which use to judge the state of the connection
+     */
+    ClientSocket.prototype.connect = function(ws_server, callback) {
     	try {
+    		that.url = ws_server;
     	    that.ws = new WebSocketClient(ws_server);
     	} catch (error) {
     		that.ws = {readState: 3,close:() => {}}; // DISCONNECTED
-    		return new Error("Invalid url", ws_server, " closed !");
+    		callback("Invalid url : " + ws_server + " closed !");
     	}
-    	// that.ws.binaryType = 'arraybuffer';
     	that.ws.onopen = function () {	
     		that.reconnectionAttempted = 0;
 			that.ws.send(that.msgHead.packMsg('H'));
@@ -4265,7 +4271,7 @@ function ClientSocket(ws_server) {
 					that.reconnectionAttempted++;
 					that.ws = undefined;
 					setTimeout(() => {
-						that.connect(() => {});
+						that.connect(that.url, () => {});
 						that.lockReconnect = false;
 						console.log("Reconnect start: ", that.reconnectionAttempted);
 					}, Math.floor(Math.random() * 4000));
@@ -4274,7 +4280,13 @@ function ClientSocket(ws_server) {
 			callback(that.readyState);
 		}; 
     }
-	
+	/**
+     *  @dev sendData
+     *  Fun: Send data to server. The data to server use xic as header and the vbs code as body.
+     *  @param {msgBody} message body.
+     *  Additional describe: that.requestNumber use to record sequence that send to server
+     *		that.requestList use to record sequence and the relevant data
+     */
     ClientSocket.prototype.sendData = function(msgBody) {
     	if (that.readyState  == that.connectStatus.open) {
 			let txid = _genarateTxid();
@@ -4282,7 +4294,7 @@ function ClientSocket(ws_server) {
 			let data = that.msgHead.packQuest(txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
 	    	that.ws.send(data);
 	    	that.requestNumber[i++] = txid;
-	    	// record sequence
+
 	    	let obj = {[txid]: data};
 	    	that.requestList.push(obj);
 	    } else {
@@ -4290,8 +4302,12 @@ function ClientSocket(ws_server) {
 	    	return that.err;
 	    }
     }
-	
-	// decode blob data
+	/**
+     *  @dev getData
+     *  Fun: Decode message receiving from server. The message to server use xic as header and the vbs code as body.
+     *  @param {data} receive message from server.
+     *  Additional describe: Read blob as file, and according to the result to do relevant deal	
+     */
     ClientSocket.prototype.getData = function(data) {
 
 		let decodeMsg = _readerBlob(data).then((result) => {
@@ -4305,7 +4321,8 @@ function ClientSocket(ws_server) {
 						that.readyState  = 2; // Can send message
 						break;
 					case 'B':
-						_graceClose();
+						that.lockReconnect = false;
+						that.ws.onclose();
 						break;
 					case 'A':
 						// TODO 
@@ -4323,7 +4340,13 @@ function ClientSocket(ws_server) {
 		});
 		return decodeMsg;
     }
-
+    /**
+     *  @dev close
+     *  Fun: Gracefully close the connection
+     *  @param {data} receive message from server.
+     *  Additional describe: If the sequence of the request is empty, close it directly, 
+     *  or send the undeal message to server
+     */
     ClientSocket.prototype.close = function() {
 		return new Promise((resolve, reject) => {
 			if (!that.ws) {
@@ -4338,37 +4361,47 @@ function ClientSocket(ws_server) {
 				that.ws.send(that.msgHead.packMsg('B'));
 			} else {
 				_graceClose();
-				// this.err = "Waiting for all requests to return, and there are " + that.requestNumber.length + " number of bars without receiving";
-				// return reject(this.err);
 			}
 		});
 	}
-
+	/**
+     *  @dev _graceClose
+     *  Fun: Gracefully close the connection
+     *  Additional describe: If the sequence of the request is empty, close it directly, 
+     *  or send the undeal message to server
+     */
 	function _graceClose() {
 		let len = that.requestNumber.length;
-		if (len != 0) {
-			// According the txid sequence to find the data
-			let waitSendMsg = [];
+		// According the txid sequence to find the data
+		let waitSendMsg = [];
 
-			that.requestList.filter((v, j) => {
-				if (that.requestNumber.indexOf(j) != -1) {
-					waitSendMsg.push(Object.values(v));
+		that.requestList.filter((v, j) => {
+			if (that.requestNumber.indexOf(j) != -1) {
+				waitSendMsg.push(Object.values(v));
+			}
+		});
+		let k = 0;
+		let m = 0; // connect ws_server' times
+		resendTimer = setInterval(() => {
+			if (k >= waitSendMsg.length) {
+				clearInterval(resendTimer);
+		    	return;
+			}	
+			if (that.requestNumber.length > 0 && that.ws.readyState == 3) {
+				m++;
+				if (m > 3) {  // At most connect 3 times
+					clearInterval(resendTimer);
+					return;
 				}
-			});
-			let k = 0;
-			resendTimer = setInterval(() => {
-				if (k >= waitSendMsg.length) {
-			    	clearInterval(resendTimer);
-			    	return;
-				}				
+				that.connect(that.url ,(readyState) => { // try to connect ws_server
+					if (readyState == 2) {
+						that.ws.sendData(waitSendMsg[k++]);
+					}
+				});
+			} else { // Server online, send the message directly to server.
 				that.ws.send(waitSendMsg[k++]);
-				console.log("There are still need to send time :", len - k - 1);
-				k++;
-			}, 1000);
-		} else {
-			that.lockReconnect = false;
-			that.ws.onclose();
-		}
+			}		
+		}, 1000);
 	}
 
     function _readerBlob(data) {
