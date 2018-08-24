@@ -183,9 +183,8 @@ function ClientSocket() {
      */
 	function _graceClose() {
 		let len = that.requestNumber.length;
-		// According the txid sequence to find the data
 		let waitSendMsg = [];
-
+		// According the txid sequence to find the data
 		that.requestList.filter((v, j) => {
 			if (that.requestNumber.indexOf(j) != -1) {
 				waitSendMsg.push(Object.values(v));

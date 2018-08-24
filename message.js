@@ -96,7 +96,9 @@ class MsgHeader {
 		
 		[a.status, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 
-		[a.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // arg
+		[a.arg, pos] = this.unpackAnswerArg(a, uint8Arr, pos);
+
+		// [a.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // arg
 		if (8+len == pos) { // Decode Right
 			return a;
 		} else {
@@ -104,6 +106,19 @@ class MsgHeader {
 			return this.err;
 		}
 		
+	}
+	unpackAnswerArg(a, uint8Arr, pos) {
+		if (a.status == 0) { // normally
+			[a.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // arg
+		} else {
+			[a.arg.exname, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // exname
+			[a.arg.code, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // code
+			[a.arg.tag, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // tag
+			[a.arg.message, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // message
+			[a.arg.raiser, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // raiser
+			[a.arg.detail, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // detail
+		}
+		return [a.arg, pos];
 	}
 	//
 	decodeHeader(uint8Arr) {

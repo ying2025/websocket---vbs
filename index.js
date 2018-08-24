@@ -1305,7 +1305,9 @@ class MsgHeader {
 		
 		[a.status, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 
-		[a.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // arg
+		[a.arg, pos] = this.unpackAnswerArg(a, uint8Arr, pos);
+
+		// [a.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // arg
 		if (8+len == pos) { // Decode Right
 			return a;
 		} else {
@@ -1313,6 +1315,19 @@ class MsgHeader {
 			return this.err;
 		}
 		
+	}
+	unpackAnswerArg(a, uint8Arr, pos) {
+		if (a.status == 0) { // normally
+			[a.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // arg
+		} else {
+			[a.arg.exname, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // exname
+			[a.arg.code, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // code
+			[a.arg.tag, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // tag
+			[a.arg.message, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // message
+			[a.arg.raiser, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // raiser
+			[a.arg.detail, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // detail
+		}
+		return [a.arg, pos];
 	}
 	//
 	decodeHeader(uint8Arr) {
@@ -4289,7 +4304,7 @@ function ClientSocket() {
      */
     ClientSocket.prototype.sendData = function(msgBody) {
     	if (that.readyState  == that.connectStatus.open) {
-			let txid = _genarateTxid();
+			let txid = _generateTxid();
 			
 			let data = that.msgHead.packQuest(txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
 	    	that.ws.send(data);
@@ -4372,9 +4387,8 @@ function ClientSocket() {
      */
 	function _graceClose() {
 		let len = that.requestNumber.length;
-		// According the txid sequence to find the data
 		let waitSendMsg = [];
-
+		// According the txid sequence to find the data
 		that.requestList.filter((v, j) => {
 			if (that.requestNumber.indexOf(j) != -1) {
 				waitSendMsg.push(Object.values(v));
@@ -4403,7 +4417,12 @@ function ClientSocket() {
 			}		
 		}, 1000);
 	}
-
+	/**
+     *  @dev _readerBlob
+     *  Fun: Read blob as arrayBuffer
+     *	@param {data}  blob data receiving from server
+     *  return Uint8Array
+     */
     function _readerBlob(data) {
 		let tempData;
 		return new Promise( function(resolve, reject) {
@@ -4420,8 +4439,12 @@ function ClientSocket() {
 			fileReader.readAsArrayBuffer(data);
 		});	
 	}
-
-    function _genarateTxid() {
+	/**
+     *  @dev _generateTxid
+     *  Fun: Generate txid
+     *  return txid
+     */
+    function _generateTxid() {
 		return that.txid++;
 	}
 
