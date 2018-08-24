@@ -4199,11 +4199,11 @@ if (typeof WebSocket == "undefined" && !process.env.browser) {
 	WebSocketClient = WebSocket;
 }
 function ClientSocket(ws_server) {
-
+	let resendTimer = null;
     this.err = "";
-    this.connectionTimeout = null;
-    this.requestList = [];
+    this.requestNumber = []; // record the request txid sequence
     this.receiveData = {};
+    this.requestList = []; // record the request txid and data sequence
 
 	let st = {
 		index: 0, 
@@ -4211,7 +4211,7 @@ function ClientSocket(ws_server) {
 	};
     this.connectStatus = {
     	noConnect: 0,  // 未连接
-    	connecting: 1, // 连接中
+    	connecting: 1, // connecting
     	open: 2,   // 已连接可以通信
     	closing: 3, // 关闭中
     	closed: 4  // 已关闭
@@ -4281,7 +4281,10 @@ function ClientSocket(ws_server) {
 			
 			let data = that.msgHead.packQuest(txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
 	    	that.ws.send(data);
-	    	that.requestList[i++] = txid;
+	    	that.requestNumber[i++] = txid;
+	    	// record sequence
+	    	let obj = {[txid]: data};
+	    	that.requestList.push(obj);
 	    } else {
 	    	that.err = "Please connect to server";
 	    	return that.err;
@@ -4302,16 +4305,15 @@ function ClientSocket(ws_server) {
 						that.readyState  = 2; // Can send message
 						break;
 					case 'B':
-						that.ws.onclose();
+						_byeClose();
 						break;
 					case 'A':
 						// TODO
-						that.requestList = that.requestList.filter(v => v!= msg.txid);
-						i--;
+						that.requestNumber = that.requestNumber.filter(v => v!= msg.txid);
 						break;
 				}
 			}
-		    console.log("Remaining request : ", that.requestList.length);
+		    console.log("Remaining request : ", that.requestNumber.length);
 			return msg;
 		 }).catch(function (error) {
 		    return error;
@@ -4328,14 +4330,50 @@ function ClientSocket(ws_server) {
             if( that.ws.terminate ) {
                 that.ws.terminate();
             }
-			if (that.requestList.length == 0) {
+			if (that.requestNumber.length == 0) {
 				that.lockReconnect = false;
 				that.ws.send(that.msgHead.packMsg('B'));
 			} else {
-				this.err = "Waiting for all requests to return, and there are " + that.requestList.length + " number of bars without receiving";
-				return reject(this.err);
+				_byeClose();
+				// this.err = "Waiting for all requests to return, and there are " + that.requestNumber.length + " number of bars without receiving";
+				// return reject(this.err);
 			}
 		});
+	}
+
+	function _byeClose() {
+		let len = that.requestNumber.length;
+		if (len != 0) {
+			// According the txid sequence to find the data
+			let waitSendMsg = [];
+			// if (!Array.indexOf) {  
+			//     Array.prototype.indexOf = function (obj) {  
+			//         for (var i = 0; i < this.length; i++) {  
+			//             if (this[i] == obj) {  
+			//                 return i;  
+			//             }  
+			//         }  
+			//         return -1;  
+			//     }  
+			// } 
+			that.requestList.filter((v, j) => {
+				if (that.requestNumber.indexOf(j) != -1) {
+					waitSendMsg.push(Object.values(v));
+				}
+			});
+			let k = 0;
+			resendTimer = setInterval(() => {
+				if (k >= waitSendMsg.length) {
+			    	clearInterval(resendTimer);
+			    	return;
+				}
+				that.ws.send(waitSendMsg[k++]);
+				console.log("There are still need to send time :", len - k);
+			}, 5000);
+		} else {
+			that.lockReconnect = false;
+			that.ws.onclose();
+		}
 	}
 
     function _readerBlob(data) {
