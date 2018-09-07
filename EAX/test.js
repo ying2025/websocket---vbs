@@ -36,39 +36,7 @@ function test2() {
     let pt = eax.decrypt(et, nonceBytes, [headerBytes]);
     console.log(pt.toString(), "##", (vec.msg+msgBytes2+msgBytes3).toLowerCase(), "plaintext match ["+"]");
 }
-// test2();
 
-// function test() {
-//     eval(aesContent);
-//     eval(ctrContent);
-//     eval(eaxContent);
-//     // let vec = {
-//     //         msg: "1BDA122BCE8A8DBAF1877D962B8592DD2D56",
-//     //         key: "5FFF20CAFAB119CA2FC73549E20F5B0D",
-//     //         nonce: "DDE59B97D722156D4D9AFF2BC7559826",
-//     //         header: "54B9F04E6A09189A",
-//     //         ct: "2EC47B2C4954A489AFC7BA4897EDCDAE8CC33B60450599BD02C96382902AEF7F832A"
-//     //     };
-//     let vec = {
-//             msg: "CA40D7446E545FFAED3BD12A740A659FFBBB3CEAB7",
-//             key: "8395FCF1E95BEBD697BD010BC766AAC3",
-//             nonce: "22E7ADD93CFC6393C57EC0B3C17D6B44",
-//             header: "126735FCC320D25A",
-//             ct: "CB8920F87A6C75CFF39627B56E3ED197C552D295A7CFC46AFC253B4652B1AF3795B124AB6E"
-//         };
-//     let keyBytes = CryptoJS.enc.Hex.parse(vec.key),
-//         msgBytes = CryptoJS.enc.Hex.parse(vec.msg),
-//         nonceBytes = CryptoJS.enc.Hex.parse(vec.nonce),
-//         headerBytes = CryptoJS.enc.Hex.parse(vec.header);
-//     // encryption test
-//     let eax = CryptoJS.EAX.create(keyBytes);
-//     let ct = eax.prepareEncryption (msgBytes, nonceBytes, [headerBytes]);
-//     console.log(ct.toString(), vec.ct.toLowerCase(), "ciphertext match ["+"]");
-
-//     let pt = eax.decrypt(ct, nonceBytes, [headerBytes]);
-//     console.log(pt.toString(), vec.msg.toLowerCase(), "plaintext match ["+"]");
-// }
-// test();
 // mulityTest();
 function mulityTest() {
     eval(aesContent);
