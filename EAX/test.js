@@ -3,7 +3,9 @@ let fs = require("fs");
 let aesContent = fs.readFileSync("./cryptojs-aes.min.js", "utf8");
 let ctrContent = fs.readFileSync("./cryptojs-mode-ctr.min.js", "utf8");
 let eaxContent = fs.readFileSync("./eax.js", "utf8");
+console.time("sort");
 test2();
+console.timeEnd("sort");
 function test2() {
     eval(aesContent);
     eval(ctrContent);
@@ -21,20 +23,27 @@ function test2() {
     let keyBytes = CryptoJS.enc.Hex.parse(vec.key),
         msgBytes = CryptoJS.enc.Hex.parse(vec.msg),
         msgBytes2 = CryptoJS.enc.Hex.parse(vec.msg2),
-        msgBytes3 = CryptoJS.enc.Hex.parse(vec.msg3),
+        // msgBytes3 = CryptoJS.enc.Hex.parse(vec.msg3),
         nonceBytes = CryptoJS.enc.Hex.parse(vec.nonce),
         headerBytes = CryptoJS.enc.Hex.parse(vec.header);
+    let msgBytes4 = CryptoJS.lib.WordArray.create(new Uint8Array([12,234,34,23,34,45,34, 67, 89, 89, 23, 89,34,12,34,45]));
+    let msgBytes5 = CryptoJS.lib.WordArray.create(new Uint8Array([237,234,134,233,344,435,34, 67, 89, 89, 23, 89,34,12,34,45]));
+    let u = new Uint8Array([237,234,134,233,344,435,34, 67, 89, 89, 23, 89,34,12,34,45]);
+    // let wordArray = CryptoJS.lib.WordArray.create(u.buffer);
+    // console.log(wordArray)
     // encryption test
     let eax = CryptoJS.EAX.create(keyBytes);
     eax.prepareEncryption(nonceBytes, [headerBytes]);
     eax.update(msgBytes);
-    eax.update(msgBytes2);
-    eax.update(msgBytes3);
-    let et = eax.finalize();
-    // console.log("et: ", et.toString())
+    // eax.update(msgBytes2);
+    // eax.update(msgBytes4);
+    // eax.update(msgBytes5);
+    let et = eax.finalize(); 
+    console.log("et: ", et.toString());
+    // console.log("ct: ", ct);
     // console.log("msgB1 ",vec.msg.toLowerCase(), "ciphertext match ["+"]");
     let pt = eax.decrypt(et, nonceBytes, [headerBytes]);
-    console.log(pt.toString(), "##", (vec.msg+msgBytes2+msgBytes3).toLowerCase(), "plaintext match ["+"]");
+    console.log(pt.toString(), "##", (vec.msg+msgBytes4+msgBytes5).toLowerCase(), "plaintext match ["+"]");
 }
 // test2();
 

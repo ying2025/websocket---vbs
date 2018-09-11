@@ -84,11 +84,30 @@ function judgeIsBasicType(obj) {
     return isBasic;
 }
 
+//十六进制字符串转字节数组  
+function strHex2Bytes(str) {  
+    var pos = 0; 
+    var len = str.length;  
+    if(len%2 != 0) {  
+       return null;   
+    }  
+    len /= 2;  
+    var hexA = new Array();  
+    for(var i=0; i<len; i++) {  
+       var s = str.substr(pos, 2);  
+       var v = parseInt(s, 16);  
+       hexA.push(v);  
+       pos += 2; 
+    }  
+    return hexA;  
+}  
+
 module.exports = {
     isInteger,
     stringToByte,
     isEmpty,
     arrCopy,
     abToString,
-    judgeIsBasicType
+    judgeIsBasicType,
+    strHex2Bytes
 }

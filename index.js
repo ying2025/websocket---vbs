@@ -1,4 +1,6 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+
+},{}],2:[function(require,module,exports){
 // shim for using process in browser
 var process = module.exports = {};
 
@@ -184,106 +186,10 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],2:[function(require,module,exports){
-// judeg obj whether is integer
-function isInteger(obj) {
-    return typeof obj === 'number' && (obj % 1 === 0);
-}
-// string to byte
-function stringToByte(str) {
-	var bytes = new Array();
-	var len, c;
-	len = str.length;
-	for(var i = 0; i < len; i++) {
-		c = str.charCodeAt(i);
-		if(c >= 0x010000 && c <= 0x10FFFF) {
-			bytes.push(((c >> 18) & 0x07) | 0xF0);
-			bytes.push(((c >> 12) & 0x3F) | 0x80);
-			bytes.push(((c >> 6) & 0x3F) | 0x80);
-			bytes.push((c & 0x3F) | 0x80);
-		} else if(c >= 0x000800 && c <= 0x00FFFF) {
-			bytes.push(((c >> 12) & 0x0F) | 0xE0);
-			bytes.push(((c >> 6) & 0x3F) | 0x80);
-			bytes.push((c & 0x3F) | 0x80);
-		} else if(c >= 0x000080 && c <= 0x0007FF) {
-			bytes.push(((c >> 6) & 0x1F) | 0xC0);
-			bytes.push((c & 0x3F) | 0x80);
-		} else {
-			bytes.push(c & 0xFF);
-		}
-	}
-	return bytes;
-
-
-}
-
-// ArrayBuf to string 
-function abToString(arr, pos, n) {
-	if(typeof arr === 'string') {
-		return arr;
-	}
-	var str = '',
-	    _arr = arr;
-	for(var i = pos; i < n; i++) {
-		var one = _arr[i].toString(2),
-			v = one.match(/^1+?(?=0)/);
-		if(v && one.length == 8) {
-			var bytesLength = v[0].length;
-			var store = _arr[i].toString(2).slice(7 - bytesLength);
-			for(var st = 1; st < bytesLength; st++) {
-				store += _arr[st + i].toString(2).slice(2);
-			}
-			str += String.fromCharCode(parseInt(store, 2));
-			i += bytesLength - 1;
-		} else {
-			str += String.fromCharCode(_arr[i]);
-		}
-	}
-	return str;
-}
-
-function isEmpty(value) {
-  return (Array.isArray(value) && value.length === 0) || (Object.prototype.isPrototypeOf(value) && Object.keys(value).length === 0);
-}
-
-// put obj to arr1
-function arrCopy(arr1, obj) {
-	if (typeof obj != "undefined") {
-		arr1.push(obj);
-	}
-	return arr1;
-}
-
-function judgeIsBasicType(obj) {
-	let isBasic;
-	switch (typeof obj) {
-        case 'number':
-        case 'boolean':
-        case 'string':
-        case 'undefined':
-        case 'null':
-        case 'symbol':
-        	isBasic = true;
-        	break;
-        default:
-        	isBasic = false;
-    }
-    return isBasic;
-}
-
-module.exports = {
-    isInteger,
-    stringToByte,
-    isEmpty,
-    arrCopy,
-    abToString,
-    judgeIsBasicType
-}
-
 },{}],3:[function(require,module,exports){
 const kindConst    =   require('./kind.js');
 const floatOperate =   require('./float.js');
-const commonFun    =   require('./commonFun.js');
+const commonFun    =   require('../commonFun.js');
 const limitConst   =   require('./limits.js');
 var   bigNumber    =   require('bignumber.js');
 let   NoError = "";
@@ -788,10 +694,10 @@ module.exports = {
     decodeVBS
 }
 
-},{"./commonFun.js":2,"./float.js":5,"./kind.js":6,"./limits.js":7,"bignumber.js":9}],4:[function(require,module,exports){
+},{"../commonFun.js":8,"./float.js":5,"./kind.js":6,"./limits.js":7,"bignumber.js":10}],4:[function(require,module,exports){
 const kindConst  =    require('./kind.js');
 const floatOperate =  require('./float.js');
-const commonFun = require('./commonFun.js');
+const commonFun = require('../commonFun.js');
 function VbsEncoder() {
     VbsEncoder.prototype.bp = [];
     /**
@@ -1053,7 +959,7 @@ module.exports = {
 
 
 
-},{"./commonFun.js":2,"./float.js":5,"./kind.js":6}],5:[function(require,module,exports){
+},{"../commonFun.js":8,"./float.js":5,"./kind.js":6}],5:[function(require,module,exports){
 var   bigNumber    =   require('bignumber.js');
 const flt_ZERO_ZERO = 0;    // 0.0 js不区分
 const flt_ZERO      = 1;    // +0.0 or -0.0  js不区分
@@ -1166,7 +1072,7 @@ module.exports = {
 }
 
 
-},{"bignumber.js":9}],6:[function(require,module,exports){
+},{"bignumber.js":10}],6:[function(require,module,exports){
 // identifier different type
 const vbsKind = {
 	VBS_TAIL: 0x01,
@@ -1207,34 +1113,165 @@ module.exports = {
     MaxInt64
 }
 },{}],8:[function(require,module,exports){
-const vbsEncode = require('./encode.js');
-const vbsDecode = require('./decode.js');
+// judeg obj whether is integer
+function isInteger(obj) {
+    return typeof obj === 'number' && (obj % 1 === 0);
+}
+// string to byte
+function stringToByte(str) {
+	var bytes = new Array();
+	var len, c;
+	len = str.length;
+	for(var i = 0; i < len; i++) {
+		c = str.charCodeAt(i);
+		if(c >= 0x010000 && c <= 0x10FFFF) {
+			bytes.push(((c >> 18) & 0x07) | 0xF0);
+			bytes.push(((c >> 12) & 0x3F) | 0x80);
+			bytes.push(((c >> 6) & 0x3F) | 0x80);
+			bytes.push((c & 0x3F) | 0x80);
+		} else if(c >= 0x000800 && c <= 0x00FFFF) {
+			bytes.push(((c >> 12) & 0x0F) | 0xE0);
+			bytes.push(((c >> 6) & 0x3F) | 0x80);
+			bytes.push((c & 0x3F) | 0x80);
+		} else if(c >= 0x000080 && c <= 0x0007FF) {
+			bytes.push(((c >> 6) & 0x1F) | 0xC0);
+			bytes.push((c & 0x3F) | 0x80);
+		} else {
+			bytes.push(c & 0xFF);
+		}
+	}
+	return bytes;
+
+
+}
+
+// ArrayBuf to string 
+function abToString(arr, pos, n) {
+	if(typeof arr === 'string') {
+		return arr;
+	}
+	var str = '',
+	    _arr = arr;
+	for(var i = pos; i < n; i++) {
+		var one = _arr[i].toString(2),
+			v = one.match(/^1+?(?=0)/);
+		if(v && one.length == 8) {
+			var bytesLength = v[0].length;
+			var store = _arr[i].toString(2).slice(7 - bytesLength);
+			for(var st = 1; st < bytesLength; st++) {
+				store += _arr[st + i].toString(2).slice(2);
+			}
+			str += String.fromCharCode(parseInt(store, 2));
+			i += bytesLength - 1;
+		} else {
+			str += String.fromCharCode(_arr[i]);
+		}
+	}
+	return str;
+}
+
+function isEmpty(value) {
+  return (Array.isArray(value) && value.length === 0) || (Object.prototype.isPrototypeOf(value) && Object.keys(value).length === 0);
+}
+
+// put obj to arr1
+function arrCopy(arr1, obj) {
+	if (typeof obj != "undefined") {
+		arr1.push(obj);
+	}
+	return arr1;
+}
+
+function judgeIsBasicType(obj) {
+	let isBasic;
+	switch (typeof obj) {
+        case 'number':
+        case 'boolean':
+        case 'string':
+        case 'undefined':
+        case 'null':
+        case 'symbol':
+        	isBasic = true;
+        	break;
+        default:
+        	isBasic = false;
+    }
+    return isBasic;
+}
+
+//十六进制字符串转字节数组  
+function strHex2Bytes(str) {  
+    var pos = 0; 
+    var len = str.length;  
+    if(len%2 != 0) {  
+       return null;   
+    }  
+    len /= 2;  
+    var hexA = new Array();  
+    for(var i=0; i<len; i++) {  
+       var s = str.substr(pos, 2);  
+       var v = parseInt(s, 16);  
+       hexA.push(v);  
+       pos += 2; 
+    }  
+    return hexA;  
+}  
+
+module.exports = {
+    isInteger,
+    stringToByte,
+    isEmpty,
+    arrCopy,
+    abToString,
+    judgeIsBasicType,
+    strHex2Bytes
+}
+
+},{}],9:[function(require,module,exports){
+const vbsEncode = require('./VBS/encode.js');
+const vbsDecode = require('./VBS/decode.js');
 const commonFun = require('./commonFun.js');
+if (typeof(window) === 'undefined') {
+	const fs = require("fs");
+	const aesContent = fs.readFileSync("../EAX/cryptojs-aes.min.js", "utf8");
+	const ctrContent = fs.readFileSync("../EAX/cryptojs-mode-ctr.min.js", "utf8");
+	const eaxContent = fs.readFileSync("../EAX/eax.js", "utf8");
+}
+
 let NoError = "";
 let MaxMessageSize = 64*1024*1024;
 class MsgHeader {
-	constructor(flags = 0x00) {
-		this._MessageHeader = {
-			Magic: 'X', // 'X'  0x58
-			Version: '!', // '!' 0x21
-			Type: '',      // 'Q', 'A', 'H', 'B', 'C'
-			Flags: 0x00,   // 0x00 or 0x01, default 0x00
-			BodySize: 0    // 4 bytes and big endian byte order
+	constructor() {
+		this._messageHeader = {
+			magic: 'X', // 'X'  0x58
+			version: '!', // '!' 0x21
+			type: '',      // 'Q', 'A', 'H', 'B', 'C'
+			flags: 0x00,   // 0x00 or 0x01, default 0x00
+			bodySize: 0    // 4 bytes and big endian byte order
 		};
-		this._Quest = {
+		this._quest = {
 			txid: 0,
-			reserved: 8, 
-			start: -1,
 			buf: []
 		};
-		this._Answer = {
+		this._answer = {
 			txid: 0,
 			status: 0,
 			argsOff: 0,
 			arg: {}
 		};
+		this._check = {
+			command: "",
+			arg: {}
+		};
+		this._isEnc = false; // whether encrypt
 		this.err = "";
 		this.packet = [];
+		this.vec = {
+            key: "8395FCF1E95BEBD697BD010BC766AAC3",
+            nonce: "22E7ADD93CFC6393C57EC0B3C17D6B44",
+            header: "126735FCC320D25A",
+            ct: "CB8920F87A6C75CFF39627B56E3ED197C552D295A7CFC46AFC253B4652B1AF3795B124AB6E"
+        };
 	}
 	fillHeader(type, len) {
 		if (len < 0) {
@@ -1247,7 +1284,7 @@ class MsgHeader {
 		this.packet[0] = 0x58; // 'X' 
 		this.packet[1] =  0x21; // '!'
 		this.packet[2] = type.charCodeAt(); // type
-		this.packet[3] = this._MessageHeader.Flags; // flag
+		this.packet[3] = this._messageHeader.flags; // flag
 		this.packet[4] = (len >> 24) & 0xFF;
 		this.packet[5] = (len >> 16) & 0xFF;
 		this.packet[6] = (len >> 8) & 0xFF;
@@ -1258,13 +1295,12 @@ class MsgHeader {
 		let u8a = new Uint8Array(this.packet);
 		return u8a.buffer;
 	}
-
-	packQuest(txid, service, method, ctx, args) {
-		let q = this._Quest;
+	packQuest(randomNum, txid, service, method, ctx, args) {
+		let q = this._quest;
 		q.txid = txid;
 		if (q.txid < 0) {
 			this.err = "txid not set yet";
-			return;
+			return this.err;
 		}
 		let newTxid = vbsEncode.encodeVBS(txid);
 		let newService = vbsEncode.encodeVBS(service);
@@ -1274,31 +1310,123 @@ class MsgHeader {
 
 		let n1 = newTxid.byteLength + newService.byteLength;
 		let n2 = newMethod.byteLength + newCtx.byteLength;
-		let len = n1 + n2 + newArg.byteLength;
+		let len = n1 + n2 + newArg.byteLength; 
+		if (this._isEnc) {
+			this._messageHeader.flags = 0x01;
+		}
 		this.fillHeader('Q', len);
 
-		let u8a = new Uint8Array(8 + len);
+		let u8a = new Uint8Array(len);
+		u8a.set(new Uint8Array(newTxid), 0); 
+    	u8a.set(new Uint8Array(newService), newTxid.byteLength);
+		u8a.set(new Uint8Array(newMethod), n1);
+		u8a.set(new Uint8Array(newCtx), n1 + newMethod.byteLength);
+		u8a.set(new Uint8Array(newArg), n1 + n2);
+		let msg;
 
-		u8a.set(this.packet, 0);
-		u8a.set(new Uint8Array(newTxid), 8); 
-    	u8a.set(new Uint8Array(newService), 8 + newTxid.byteLength);
-		u8a.set(new Uint8Array(newMethod), 8 + n1);
-		u8a.set(new Uint8Array(newCtx), 8 + n1 + newMethod.byteLength);
-		u8a.set(new Uint8Array(newArg), 8 + n1 + n2);
-
-		return u8a.buffer;
+		let nonNum = vbsEncode.encodeVBS(randomNum);
+		if (!this._isEnc) {
+			let et = this.cryptoData(u8a);
+			let ct = this.convertWordArrayToUint8Array(et);
+			msg = new Uint8Array(ct.byteLength + 16);	
+			msg.set(this.packet, 8);
+			msg.set(ct, 16);	
+		} else {
+			msg = new Uint8Array(u8a.byteLength + 16);
+			msg.set(this.packet, 8);
+			msg.set(u8a, 16);
+		}
+		msg.set(new Uint8Array(nonNum), 0);
+		return msg.buffer;
 	}
+	cryptoData(uint8Msg) {
+		if (typeof(window) === 'undefined') {
+			eval(aesContent);
+		    eval(ctrContent);
+		    eval(eaxContent);
+		}
+	    let keyBytes = CryptoJS.enc.Hex.parse(this.vec.key),
+	    	nonceBytes = CryptoJS.enc.Hex.parse(this.vec.nonce),
+	    	headerBytes = CryptoJS.enc.Hex.parse(this.vec.header);
+	    let msgBytes = CryptoJS.lib.WordArray.create(uint8Msg);
+
+	    let eax = CryptoJS.EAX.create(keyBytes);
+	    console.log(eax);
+	    eax.prepareEncryption(nonceBytes, [headerBytes]);
+	    eax.update(msgBytes);
+	    let et = eax.finalize();
+	    return et;
+	}
+	convertWordArrayToUint8Array(wordArray) {
+	    let len = wordArray.words.length,
+	        u8_array = new Uint8Array(len << 2),
+	        offset = 0, word, i;
+	    for (i=0; i<len; i++) {
+	        word = wordArray.words[i];
+	        u8_array[offset++] = word >> 24;
+	        u8_array[offset++] = (word >> 16) & 0xff;
+	        u8_array[offset++] = (word >> 8) & 0xff;
+	        u8_array[offset++] = word & 0xff;
+	    }
+	    return u8_array;
+	}
+	decryptData(et) {
+		let keyBytes = CryptoJS.enc.Hex.parse(this.vec.key),
+			headerBytes = CryptoJS.enc.Hex.parse(this.vec.header);
+		let eax = CryptoJS.EAX.create(keyBytes);
+		let pt = eax.decrypt(et, keyBytes, [headerBytes]);
+		return pt;
+	}
+	// packQuest(txid, service, method, ctx, args) {
+	// 	let q = this._quest;
+	// 	q.txid = txid;
+	// 	if (q.txid < 0) {
+	// 		this.err = "txid not set yet";
+	// 		return this.err;
+	// 	}
+	// 	let newTxid = vbsEncode.encodeVBS(txid);
+	// 	let newService = vbsEncode.encodeVBS(service);
+	// 	let newMethod =  vbsEncode.encodeVBS(method);
+	// 	let newCtx = vbsEncode.encodeVBS(ctx);
+	// 	let newArg = vbsEncode.encodeVBS(args);
+
+	// 	let n1 = newTxid.byteLength + newService.byteLength;
+	// 	let n2 = newMethod.byteLength + newCtx.byteLength;
+	// 	let len = n1 + n2 + newArg.byteLength; 
+	// 	if (this._isEnc) {
+	// 		this._messageHeader.flags = 0x01;
+	// 	}
+	// 	this.fillHeader('Q', len);
+
+	// 	let u8a = new Uint8Array(8 + len);
+
+	// 	u8a.set(this.packet, 0);
+	// 	u8a.set(new Uint8Array(newTxid), 8); 
+ //    	u8a.set(new Uint8Array(newService), 8 + newTxid.byteLength);
+	// 	u8a.set(new Uint8Array(newMethod), 8 + n1);
+	// 	u8a.set(new Uint8Array(newCtx), 8 + n1 + newMethod.byteLength);
+	// 	u8a.set(new Uint8Array(newArg), 8 + n1 + n2);
+	// 	if (this._isEnc) {
+	// 		console.log(u8a);
+	// 	} else {
+	// 		return u8a.buffer;
+	// 	}
+	// }
 
 	// TODO encryption
 	unpackCheck(uint8Arr) {
-		
+		let c = Object.assgin(this._messageHeader, this._check);
+		let pos = 0;
+		[c.cmd, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
+		[c.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
+		return c;
 	}
 	//
 	unpackAnswer(uint8Arr) {
 		// Normal
-		this._MessageHeader.Type = 'A';
-		let a = Object.assign(this._MessageHeader, this._Answer);
-		// let a = this._Answer;
+		this._messageHeader.type = 'A';
+		let a = Object.assign(this._messageHeader, this._answer);
+		// let a = this._answer;
 		let len = ((uint8Arr[4] & 0xFF) << 24) + ((uint8Arr[5] & 0xFF) << 16) + ((uint8Arr[6] & 0xFF) << 8) + (uint8Arr[7] & 0xFF);
 		let pos = 0;
 		[a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
@@ -1339,8 +1467,8 @@ class MsgHeader {
 		let type = String.fromCharCode(uint8Arr[2]);
 		let msg;
 
-		if (uint8Arr[0] != 0x58 || uint8Arr[1] != 0x21) { // Magic != 'X' ||  Version != '!'
-			this.err = "Unknown message Magic and Version" + uint8Arr[0] + "," +  uint8Arr[1];
+		if (uint8Arr[0] != 0x58 || uint8Arr[1] != 0x21) { // magic != 'X' ||  version != '!'
+			this.err = "Unknown message magic and version" + uint8Arr[0] + "," +  uint8Arr[1];
 			return this.err;
 		} 
 		if (type == 'H' || type == 'B') {
@@ -1352,10 +1480,10 @@ class MsgHeader {
 
 		switch (type) {
 			case 'H': 
-		    	msg = Object.assign(this._MessageHeader, {Type:'H'});
+		    	msg = Object.assign(this._messageHeader, {type:'H'});
 		    	break;
 		    case 'B':
-		    	msg = Object.assign(this._MessageHeader, {Type:'B'});
+		    	msg = Object.assign(this._messageHeader, {type:'B'});
 		    	break;
 		    case 'C':
 		    	msg = this.unpackCheck(uint8Arr); // readyState: 1
@@ -1364,7 +1492,7 @@ class MsgHeader {
 		    	msg = this.unpackAnswer(uint8Arr);
 		    	break;
 		    default: 
-		    	this.err = "Unknown message Type" + type;
+		    	this.err = "Unknown message type" + type;
 		}
 		return msg;
 	}
@@ -1374,7 +1502,7 @@ class MsgHeader {
 module.exports = {
 	MsgHeader
 }
-},{"./commonFun.js":2,"./decode.js":3,"./encode.js":4}],9:[function(require,module,exports){
+},{"./VBS/decode.js":3,"./VBS/encode.js":4,"./commonFun.js":8,"fs":1}],10:[function(require,module,exports){
 ;(function (globalObject) {
   'use strict';
 
@@ -4190,7 +4318,7 @@ module.exports = {
   }
 })(this);
 
-},{}],10:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 'use strict';
 
 module.exports = function () {
@@ -4200,11 +4328,11 @@ module.exports = function () {
   );
 };
 
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 (function (process){
 const commonFun = require('./commonFun.js');
-const vbsEncode = require('./encode.js');
-const vbsDecode = require('./decode.js');
+const vbsEncode = require('./VBS/encode.js');
+const vbsDecode = require('./VBS/decode.js');
 const  msgHeader  = require('./message.js').MsgHeader;
 let NoError = "";
 let WebSocketClient;
@@ -4213,12 +4341,17 @@ if (typeof WebSocket == "undefined" && !process.env.browser) {
 } else {
 	WebSocketClient = WebSocket;
 }
+let send_nonce = 30000000023234; // counter of sending to server 
+let send_add_state = 2; // The step of each increase
+
 function ClientSocket() {
 	let resendTimer = null;
     this.err = "";
     this.requestNumber = []; // record the request txid sequence
     this.requestList = []; // record the request txid and data sequence
     this.url = '';
+    this.send_nonce = send_nonce;
+    this.noce_increase_step = send_add_state;
 
 	let st = {
 		index: 0, 
@@ -4263,7 +4396,7 @@ function ClientSocket() {
 		that.ws.onmessage = function (e) {
 		    let dataMsg = that.getData(e.data).then((data) => {
 		    	console.log('ws onmessage from server: ', data);
-		    	if (data.Type !== undefined && data.Type == 'H') {
+		    	if (data.type !== undefined && data.type == 'H') {
 			    	callback(that.readyState);
 			    }
 		    }).catch((error) => {
@@ -4306,8 +4439,9 @@ function ClientSocket() {
     	if (that.readyState  == that.connectStatus.open) {
 			let txid = _generateTxid();
 			
-			let data = that.msgHead.packQuest(txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
+			let data = that.msgHead.packQuest(that.send_nonce, txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
 	    	that.ws.send(data);
+	    	that.send_nonce += that.noce_increase_step;
 	    	that.requestNumber[i++] = txid;
 
 	    	let obj = {[txid]: data};
@@ -4327,8 +4461,8 @@ function ClientSocket() {
 
 		let decodeMsg = _readerBlob(data).then((result) => {
 			let msg = that.msgHead.decodeHeader(result);
-			if (typeof msg.Type != "undefined") {
-				switch (msg.Type) {
+			if (typeof msg.type != "undefined") {
+				switch (msg.type) {
 					case 'C':          
 						that.readyState  = 1; // 
 						break;
@@ -4459,4 +4593,4 @@ if (typeof(window) === 'undefined') {
 }
 
 }).call(this,require('_process'))
-},{"./commonFun.js":2,"./decode.js":3,"./encode.js":4,"./message.js":8,"_process":1,"ws":10}]},{},[11]);
+},{"./VBS/decode.js":3,"./VBS/encode.js":4,"./commonFun.js":8,"./message.js":9,"_process":2,"ws":11}]},{},[12]);
