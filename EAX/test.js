@@ -28,9 +28,6 @@ function test2() {
         headerBytes = CryptoJS.enc.Hex.parse(vec.header);
     let msgBytes4 = CryptoJS.lib.WordArray.create(new Uint8Array([12,234,34,23,34,45,34, 67, 89, 89, 23, 89,34,12,34,45]));
     let msgBytes5 = CryptoJS.lib.WordArray.create(new Uint8Array([237,234,134,233,344,435,34, 67, 89, 89, 23, 89,34,12,34,45]));
-    let u = new Uint8Array([237,234,134,233,344,435,34, 67, 89, 89, 23, 89,34,12,34,45]);
-    // let wordArray = CryptoJS.lib.WordArray.create(u.buffer);
-    // console.log(wordArray)
     // encryption test
     let eax = CryptoJS.EAX.create(keyBytes);
     eax.prepareEncryption(nonceBytes, [headerBytes]);
@@ -150,7 +147,6 @@ function mulityTest() {
         let eax = CryptoJS.EAX.create(keyBytes);
         eax.prepareEncryption (nonceBytes, [headerBytes]);
         eax.update(msgBytes);
-        // eax.update(msgBytes2);
         let et = eax.finalize();
         assert(et.toString(), vec.ct.toLowerCase(), "ciphertext match ["+i+"]");
         
