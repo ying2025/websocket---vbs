@@ -208,7 +208,12 @@ class MsgHeader {
 				return this.err;
 			}
 			let data = this.convertWordArrayToUint8Array(pt);
-			uint8Arr.set(data, 8); // cover encrypt data with decrypt data.
+			let header = new Uint8Array(uint8Arr.buffer, 0, 8);
+			
+			let tempArr = new Uint8Array(8 + data.length);
+			tempArr.set(header, 0);
+			tempArr.set(data, 8);
+			uint8Arr = tempArr;
 		}
 		[a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
 		
