@@ -9,8 +9,6 @@ if (typeof WebSocket == "undefined" && !process.env.browser) {
 } else {
 	WebSocketClient = WebSocket;
 }
-let send_nonce = 30000000023234; // counter of sending to server 
-let send_add_state = 2; // The step of each increase
 
 function ClientSocket() {
 	let resendTimer = null;
@@ -18,8 +16,6 @@ function ClientSocket() {
     this.requestNumber = []; // record the request txid sequence
     this.requestList = []; // record the request txid and data sequence
     this.url = '';
-    this.send_nonce = send_nonce;
-    this.noce_increase_step = send_add_state;
 
 	let st = {
 		index: 0, 
@@ -107,9 +103,8 @@ function ClientSocket() {
     	if (that.readyState  == that.connectStatus.open) {
 			let txid = _generateTxid();
 			
-			let data = that.msgHead.packQuest(that.send_nonce, txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
+			let data = that.msgHead.packQuest(txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
 	    	that.ws.send(data);
-	    	that.send_nonce += that.noce_increase_step;
 	    	that.requestNumber[i++] = txid;
 
 	    	let obj = {[txid]: data};

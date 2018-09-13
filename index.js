@@ -1240,6 +1240,8 @@ if (typeof(window) === 'undefined') {
 
 let NoError = "";
 let MaxMessageSize = 64*1024*1024;
+let send_nonce = 30000000023234; // counter of sending to server 
+let send_add_state = 2; // The step of each increase
 class MsgHeader {
 	constructor() {
 		this._messageHeader = {
@@ -1272,6 +1274,8 @@ class MsgHeader {
             header: "126735FCC320D25A",
             ct: "CB8920F87A6C75CFF39627B56E3ED197C552D295A7CFC46AFC253B4652B1AF3795B124AB6E"
         };
+        this.send_nonce = send_nonce;
+    	this.noce_increase_step = send_add_state;
 	}
 	fillHeader(type, len) {
 		if (len < 0) {
@@ -1290,12 +1294,25 @@ class MsgHeader {
 		this.packet[6] = (len >> 8) & 0xFF;
 		this.packet[7] = len & 0xFF;
 	}
+	packCheck(command, args) {
+		let cmdBytes = vbsEncode.encodeVBS(common);
+		let argBytes = vbsEncode.encodeVBS(args);
+		this.fillHeader('C', len);
+		let n = cmdBytes.byteLength + argBytes.byteLength;
+
+		let u8a = new Uint8Array(8 + n);
+		u8a.set(this.packt, 0);
+		u8a.set(cmdBytes, 8);
+		u8a.set(argBytes, 8 + cmdBytes.byteLength);
+
+		return u8a.buffer;
+	}
 	packMsg(type) {
 		this.fillHeader(type, 0);	
 		let u8a = new Uint8Array(this.packet);
 		return u8a.buffer;
 	}
-	packQuest(randomNum, txid, service, method, ctx, args) {
+	packQuest(txid, service, method, ctx, args) {
 		let q = this._quest;
 		q.txid = txid;
 		if (q.txid < 0) {
@@ -1323,20 +1340,20 @@ class MsgHeader {
 		u8a.set(new Uint8Array(newCtx), n1 + newMethod.byteLength);
 		u8a.set(new Uint8Array(newArg), n1 + n2);
 		let msg;
-
-		let nonNum = vbsEncode.encodeVBS(randomNum);
-		if (!this._isEnc) {
+		let nonNum = vbsEncode.encodeVBS(this.send_nonce);
+		this.send_nonce += this.noce_increase_step;
+		if (this._isEnc) {
 			let et = this.cryptoData(u8a);
 			let ct = this.convertWordArrayToUint8Array(et);
 			msg = new Uint8Array(ct.byteLength + 16);	
+			msg.set(new Uint8Array(nonNum), 0);
 			msg.set(this.packet, 8);
 			msg.set(ct, 16);	
 		} else {
-			msg = new Uint8Array(u8a.byteLength + 16);
-			msg.set(this.packet, 8);
-			msg.set(u8a, 16);
+			msg = new Uint8Array(u8a.byteLength + 8);
+			msg.set(this.packet, 0);
+			msg.set(u8a, 8);
 		}
-		msg.set(new Uint8Array(nonNum), 0);
 		return msg.buffer;
 	}
 	cryptoData(uint8Msg) {
@@ -1348,18 +1365,30 @@ class MsgHeader {
 	    let keyBytes = CryptoJS.enc.Hex.parse(this.vec.key),
 	    	nonceBytes = CryptoJS.enc.Hex.parse(this.vec.nonce),
 	    	headerBytes = CryptoJS.enc.Hex.parse(this.vec.header);
-	    let msgBytes = CryptoJS.lib.WordArray.create(uint8Msg);
+	    // let msgBytes = CryptoJS.lib.WordArray.create(uint8Msg);
+	    let msgBytes = this.convertUint8ArrayToWordArray(uint8Msg);
 
 	    let eax = CryptoJS.EAX.create(keyBytes);
-	    console.log(eax);
 	    eax.prepareEncryption(nonceBytes, [headerBytes]);
 	    eax.update(msgBytes);
 	    let et = eax.finalize();
 	    return et;
 	}
+	decryptData(et) {
+		let keyBytes = CryptoJS.enc.Hex.parse(this.vec.key),
+			nonceBytes = CryptoJS.enc.Hex.parse(this.vec.nonce),
+			headerBytes = CryptoJS.enc.Hex.parse(this.vec.header);
+		let eax = CryptoJS.EAX.create(keyBytes);
+
+		let etData = this.convertUint8ArrayToWordArray(et);
+		let pt = eax.decrypt(etData, nonceBytes, [headerBytes]);
+		return pt;
+	}
 	convertWordArrayToUint8Array(wordArray) {
-	    let len = wordArray.words.length,
-	        u8_array = new Uint8Array(len << 2),
+		// let len = wordArray.words.length,
+			   // u8_array = new Uint8Array(len << 2),
+	    let len = wordArray.sigBytes,
+	        u8_array = new Uint8Array(len),
 	        offset = 0, word, i;
 	    for (i=0; i<len; i++) {
 	        word = wordArray.words[i];
@@ -1370,51 +1399,24 @@ class MsgHeader {
 	    }
 	    return u8_array;
 	}
-	decryptData(et) {
-		let keyBytes = CryptoJS.enc.Hex.parse(this.vec.key),
-			headerBytes = CryptoJS.enc.Hex.parse(this.vec.header);
-		let eax = CryptoJS.EAX.create(keyBytes);
-		let pt = eax.decrypt(et, keyBytes, [headerBytes]);
-		return pt;
+	// Uint8Array transfer to WordArray 
+	convertUint8ArrayToWordArray(u8Array) {
+		let words = [], i = 0, len = u8Array.length;
+		while (i < len) {
+			words.push(
+				(u8Array[i++] << 24) |
+				(u8Array[i++] << 16) |
+				(u8Array[i++] << 8)  |
+				(u8Array[i++])
+			);
+		}
+		// return {sigBytes: words.length * 4,words: words};
+		// adjust the len, avoid unreal bytes
+		return {sigBytes: len, words: words}; 
 	}
-	// packQuest(txid, service, method, ctx, args) {
-	// 	let q = this._quest;
-	// 	q.txid = txid;
-	// 	if (q.txid < 0) {
-	// 		this.err = "txid not set yet";
-	// 		return this.err;
-	// 	}
-	// 	let newTxid = vbsEncode.encodeVBS(txid);
-	// 	let newService = vbsEncode.encodeVBS(service);
-	// 	let newMethod =  vbsEncode.encodeVBS(method);
-	// 	let newCtx = vbsEncode.encodeVBS(ctx);
-	// 	let newArg = vbsEncode.encodeVBS(args);
-
-	// 	let n1 = newTxid.byteLength + newService.byteLength;
-	// 	let n2 = newMethod.byteLength + newCtx.byteLength;
-	// 	let len = n1 + n2 + newArg.byteLength; 
-	// 	if (this._isEnc) {
-	// 		this._messageHeader.flags = 0x01;
-	// 	}
-	// 	this.fillHeader('Q', len);
-
-	// 	let u8a = new Uint8Array(8 + len);
-
-	// 	u8a.set(this.packet, 0);
-	// 	u8a.set(new Uint8Array(newTxid), 8); 
- //    	u8a.set(new Uint8Array(newService), 8 + newTxid.byteLength);
-	// 	u8a.set(new Uint8Array(newMethod), 8 + n1);
-	// 	u8a.set(new Uint8Array(newCtx), 8 + n1 + newMethod.byteLength);
-	// 	u8a.set(new Uint8Array(newArg), 8 + n1 + n2);
-	// 	if (this._isEnc) {
-	// 		console.log(u8a);
-	// 	} else {
-	// 		return u8a.buffer;
-	// 	}
-	// }
-
 	// TODO encryption
 	unpackCheck(uint8Arr) {
+		this._messageHeader.type = 'C';
 		let c = Object.assgin(this._messageHeader, this._check);
 		let pos = 0;
 		[c.cmd, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
@@ -1426,16 +1428,24 @@ class MsgHeader {
 		// Normal
 		this._messageHeader.type = 'A';
 		let a = Object.assign(this._messageHeader, this._answer);
-		// let a = this._answer;
+
 		let len = ((uint8Arr[4] & 0xFF) << 24) + ((uint8Arr[5] & 0xFF) << 16) + ((uint8Arr[6] & 0xFF) << 8) + (uint8Arr[7] & 0xFF);
 		let pos = 0;
+		if (this._isEnc) {
+			let pt = this.decryptData(new Uint8Array(uint8Arr.buffer, 16, uint8Arr.length - 8));
+			if (pt == false) {
+				this.err = "Decrypt data Error !";
+				return this.err;
+			}
+			let data = this.convertWordArrayToUint8Array(pt);
+			uint8Arr.set(data, 8); // cover encrypt data with decrypt data.
+		}
 		[a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
 		
 		[a.status, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 
 		[a.arg, pos] = this.unpackAnswerArg(a, uint8Arr, pos);
 
-		// [a.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // arg
 		if (8+len == pos) { // Decode Right
 			return a;
 		} else {
@@ -1464,6 +1474,11 @@ class MsgHeader {
 			this.err = "The length of message is less than 8 bytes !";
 			return this.err;
 		}
+		if (this._isEnc) { 
+			// Remain only encrypt data
+			let data = new Uint8Array(uint8Arr.buffer, 8, uint8Arr.length - 8);
+			return this.unpackAnswer(data);
+		}
 		let type = String.fromCharCode(uint8Arr[2]);
 		let msg;
 
@@ -1481,6 +1496,7 @@ class MsgHeader {
 		switch (type) {
 			case 'H': 
 		    	msg = Object.assign(this._messageHeader, {type:'H'});
+		    	this._isEnc = true;
 		    	break;
 		    case 'B':
 		    	msg = Object.assign(this._messageHeader, {type:'B'});
@@ -1493,6 +1509,9 @@ class MsgHeader {
 		    	break;
 		    default: 
 		    	this.err = "Unknown message type" + type;
+		}
+		if (this.err != NoError) {
+			return this.err;
 		}
 		return msg;
 	}
@@ -4341,8 +4360,6 @@ if (typeof WebSocket == "undefined" && !process.env.browser) {
 } else {
 	WebSocketClient = WebSocket;
 }
-let send_nonce = 30000000023234; // counter of sending to server 
-let send_add_state = 2; // The step of each increase
 
 function ClientSocket() {
 	let resendTimer = null;
@@ -4350,8 +4367,6 @@ function ClientSocket() {
     this.requestNumber = []; // record the request txid sequence
     this.requestList = []; // record the request txid and data sequence
     this.url = '';
-    this.send_nonce = send_nonce;
-    this.noce_increase_step = send_add_state;
 
 	let st = {
 		index: 0, 
@@ -4439,9 +4454,8 @@ function ClientSocket() {
     	if (that.readyState  == that.connectStatus.open) {
 			let txid = _generateTxid();
 			
-			let data = that.msgHead.packQuest(that.send_nonce, txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
+			let data = that.msgHead.packQuest(txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
 	    	that.ws.send(data);
-	    	that.send_nonce += that.noce_increase_step;
 	    	that.requestNumber[i++] = txid;
 
 	    	let obj = {[txid]: data};

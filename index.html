@@ -16,9 +16,9 @@
    
 </body>
 </html>
-<script type="text/javascript" src="../EAX/cryptojs-aes.min.js"></script>
-<script type="text/javascript" src="../EAX/cryptojs-mode-ctr.min.js"></script>
-<script type="text/javascript" src="../EAX/eax.js"></script>
+<script type="text/javascript" src="./EAX/cryptojs-aes.min.js"></script>
+<script type="text/javascript" src="./EAX/cryptojs-mode-ctr.min.js"></script>
+<script type="text/javascript" src="./EAX/eax.js"></script>
 <script>
    		// let Websocket = require("./index.js");
    		// console.log(ClientSocket.ws.onopen)
@@ -61,7 +61,7 @@
 			   // wss://echo.websocket.org
 			// client = new ClientSocket('ws://192.168.200.93:8888/');
 			client = new ClientSocket();
-			client.connect('ws://192.168.200.113:8888/', function(readyState) {
+			client.connect('wss://echo.websocket.org', function(readyState) {
 				if (readyState == 2) {
 					ele.innerText = '【服务端 处于正常服务】';
 				} else if (readyState == 4) {
