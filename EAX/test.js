@@ -32,9 +32,9 @@ function test2() {
     let eax = CryptoJS.EAX.create(keyBytes);
     eax.prepareEncryption(nonceBytes, [headerBytes]);
     eax.update(msgBytes);
-    // eax.update(msgBytes2);
-    // eax.update(msgBytes4);
-    // eax.update(msgBytes5);
+    eax.update(msgBytes2);
+    eax.update(msgBytes4);
+    eax.update(msgBytes5);
     let et = eax.finalize(); 
     console.log("et: ", et.toString());
     // console.log("ct: ", ct);
