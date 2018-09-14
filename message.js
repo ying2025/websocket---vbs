@@ -1,11 +1,13 @@
 const vbsEncode = require('./VBS/encode.js');
 const vbsDecode = require('./VBS/decode.js');
 const commonFun = require('./commonFun.js');
+const srp6aFun = require('./srp6a/SRP6a.js');
+
 if (typeof(window) === 'undefined') {
 	const fs = require("fs");
-	const aesContent = fs.readFileSync("../EAX/cryptojs-aes.min.js", "utf8");
-	const ctrContent = fs.readFileSync("../EAX/cryptojs-mode-ctr.min.js", "utf8");
-	const eaxContent = fs.readFileSync("../EAX/eax.js", "utf8");
+	const aesContent = fs.readFileSync("./EAX/cryptojs-aes.min.js", "utf8");
+	const ctrContent = fs.readFileSync("./EAX/cryptojs-mode-ctr.min.js", "utf8");
+	const eaxContent = fs.readFileSync("./EAX/eax.js", "utf8");
 }
 
 let NoError = "";
@@ -46,6 +48,8 @@ class MsgHeader {
         };
         this.send_nonce = send_nonce;
     	this.noce_increase_step = send_add_state;
+    	this.accountId = "alice";
+    	this.cli = null;
 	}
 	fillHeader(type, len) {
 		if (len < 0) {
@@ -76,6 +80,19 @@ class MsgHeader {
 		u8a.set(argBytes, 8 + cmdBytes.byteLength);
 
 		return u8a.buffer;
+	}
+	sendSrp6a1(args) {
+		let command = "SRP6a1";
+		let arg = {"account": this.accountId};
+		return packCheck(command, arg);
+	}
+	sendSrp6a3(args) {
+		let command = "SRP6a3";
+		let B = args.B;
+		this.cli = arg.cli;
+		let M1 = srp6aFun.clientComputeM1(this.cli, B);
+		let arg = {"M1": M1};
+		return packCheck(command, arg);
 	}
 	packMsg(type) {
 		this.fillHeader(type, 0);	
@@ -191,7 +208,32 @@ class MsgHeader {
 		let pos = 0;
 		[c.cmd, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
 		[c.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
+		this.dealCmd(c.cmd, c.arg);
+		
 		return c;
+	}
+	dealCmd(command, arg) {
+		switch(command) {
+			case 'FORBIDDEN':
+				this.forbidden(arg);
+				break; 
+			case 'AUTHENTICATE':
+				this.sendSrp6a1(arg);
+				break;
+			case 'SRP6a2':
+				this.sendSrp6a3(arg);
+				break;
+			case 'SRP6a4':
+				this.verifySrp6a(arg);
+				break;			
+		}
+	}
+	verifySrp6a(args) {
+		let M2 = args.M2;
+		srp6aFun.verifyM2(this.cli, M2);
+	}
+	forbidden(args) {
+
 	}
 	//
 	unpackAnswer(uint8Arr) {
@@ -271,7 +313,7 @@ class MsgHeader {
 		switch (type) {
 			case 'H': 
 		    	msg = Object.assign(this._messageHeader, {type:'H'});
-		    	this._isEnc = true;
+		    	// this._isEnc = true;
 		    	break;
 		    case 'B':
 		    	msg = Object.assign(this._messageHeader, {type:'B'});
