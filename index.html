@@ -42,9 +42,9 @@
    	 	let client;
    	 	let err = "";
    	 	let NoError = "";
-   	 	let ele = document.createElement('div');
+   	 	
 		function connectting() {
-			
+			let ele = document.createElement('div');
 			if (client != undefined && client.readyState == 2) {
 				ele.innerText = '【服务端 已连接】';
 				document.getElementById('info').appendChild(ele);
@@ -105,7 +105,11 @@
 
 		function closeConn() {
 			let ele = document.createElement('div');
-			if (client == undefined || (client.readyState == 4)) {
+			if (client == undefined) {
+				ele.innerText = '【未连接服务器，请先连接服务器！】';
+				document.getElementById('info').appendChild(ele);
+				return;
+			} else if (client.readyState == 4) {
 				ele.innerText = '【客户端 已断开连接】';
 				document.getElementById('info').appendChild(ele);
 				return;
