@@ -575,7 +575,6 @@
             self._isEnc = isEncrypt;
             self._mac.update(zero);
             nonce = self._mac.finalize(nonce); // finailize the nonce
-            
             ext.xor(self._tag, nonce);
             self._ctr = AES.createEncryptor(self._ctrKey, {
                 iv: nonce, 
@@ -616,7 +615,6 @@
             var ctFin = self._ctr.finalize(); // get the last block   
             if (isEnc) {
                 var ctTag = mac.finalize(ctFin);
-                
                 ext.xor(self._tag, ctTag);
                 self.reset();
                 self.xoredData = undefined;
@@ -624,7 +622,6 @@
             } else {
                 // buffer must contain only the tag at this point
                 var ctTag = mac.finalize(); 
-                
                 ext.xor(self._tag, ctTag);
                 self.reset();
                 if (ext.equals(self._tag, self._buf)) { // tag match
