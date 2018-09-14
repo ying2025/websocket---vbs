@@ -14,6 +14,7 @@ let NoError = "";
 let MaxMessageSize = 64*1024*1024;
 let send_nonce = 30000000023234; // counter of sending to server 
 let send_add_state = 2; // The step of each increase
+
 class MsgHeader {
 	constructor() {
 		this._messageHeader = {
@@ -49,6 +50,8 @@ class MsgHeader {
         this.send_nonce = send_nonce;
     	this.noce_increase_step = send_add_state;
     	this.accountId = "alice";
+    	this.id = "alice";
+    	this.pass = "password123";
     	this.cli = null;
 	}
 	fillHeader(type, len) {
@@ -89,7 +92,10 @@ class MsgHeader {
 	sendSrp6a3(args) {
 		let command = "SRP6a3";
 		let B = args.B;
-		this.cli = arg.cli;
+		let N = arg.N;
+		let g = arg.g;
+		let s = arg.s;
+		this.cli = srp6aFun.clientInit(g, N, s, this.id, this.pass);
 		let M1 = srp6aFun.clientComputeM1(this.cli, B);
 		let arg = {"M1": M1};
 		return packCheck(command, arg);
@@ -209,7 +215,7 @@ class MsgHeader {
 		[c.cmd, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
 		[c.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		this.dealCmd(c.cmd, c.arg);
-		
+
 		return c;
 	}
 	dealCmd(command, arg) {

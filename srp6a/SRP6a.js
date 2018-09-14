@@ -391,7 +391,7 @@ function verifyM2(cli, M2) {
 	let M22 = cli.computeM2(cli);
 	if (M22.toString() == M2.toString()) {
 		console.log("---------Pass---------", M22.toString());
-		return [cli._X, cli._N];
+		return [cli._S, cli._N];
 	} else {
 		console.log("---------Fail---------", M22.toString());
 	}
@@ -430,19 +430,3 @@ if (typeof(window) === 'undefined') {
 		verifyM2
     }
 }
-
-// 下面只对浏览器有效
-// window.utils = {
-//   S1,
-//   S1Hex,
-//   S2,
-//   S2Hex,
-//   M11,
-//   M12,
-//   M11Hex,
-//   M12Hex,
-//   M21,
-//   M22,
-//   M21Hex,
-//   M22Hex
-// }
