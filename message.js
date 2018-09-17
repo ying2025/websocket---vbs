@@ -1,7 +1,7 @@
 const vbsEncode = require('./VBS/encode.js');
 const vbsDecode = require('./VBS/decode.js');
 const commonFun = require('./commonFun.js');
-const srp6aFun = require('./srp6a/SRP6a.js');
+const srp6aClient = require('./srp6a/SRP6a.js').NewClient;
 
 if (typeof(window) === 'undefined') {
 	const fs = require("fs");
@@ -41,14 +41,14 @@ class MsgHeader {
 		this._isEnc = false; // whether encrypt
 		this.err = "";
 		this.packet = [];
-		this.vec = {
+        this.send_nonce = send_nonce;
+    	this.noce_increase_step = send_add_state;
+    	this.vec = {
             key: "8395FCF1E95BEBD697BD010BC766AAC3",
             nonce: "22E7ADD93CFC6393C57EC0B3C17D6B44",
             header: "126735FCC320D25A",
             ct: "CB8920F87A6C75CFF39627B56E3ED197C552D295A7CFC46AFC253B4652B1AF3795B124AB6E"
         };
-        this.send_nonce = send_nonce;
-    	this.noce_increase_step = send_add_state;
     	this.accountId = "alice";
     	this.id = "alice";
     	this.pass = "password123";
@@ -72,33 +72,60 @@ class MsgHeader {
 		this.packet[7] = len & 0xFF;
 	}
 	packCheck(command, args) {
-		let cmdBytes = vbsEncode.encodeVBS(common);
+		let cmdBytes = vbsEncode.encodeVBS(command);
 		let argBytes = vbsEncode.encodeVBS(args);
-		this.fillHeader('C', len);
+		this.fillHeader('C', 0);
 		let n = cmdBytes.byteLength + argBytes.byteLength;
 
 		let u8a = new Uint8Array(8 + n);
-		u8a.set(this.packt, 0);
+		u8a.set(this.packet, 0);
 		u8a.set(cmdBytes, 8);
 		u8a.set(argBytes, 8 + cmdBytes.byteLength);
-
-		return u8a.buffer;
+		// TODO
+		// sendMsg(u8a.buffer); 
 	}
 	sendSrp6a1(args) {
+		let method = args.method;
+		if (method != "SRP6a") {
+			this.err = "Unknown authenticate method "+ method;
+			return this.err;
+		}
+		this.cli = new srp6aClient();
+		// let identity = args.id;
+		this.cli.setIdentity(this.id, this.pass);
 		let command = "SRP6a1";
-		let arg = {"account": this.accountId};
-		return packCheck(command, arg);
+		let arg = {"I": this.id};
+		return this.packCheck(command, arg);
 	}
 	sendSrp6a3(args) {
 		let command = "SRP6a3";
+		if (this.cli == null) {
+			this.err = "Client cann't be empty !";
+		}
+		let hash = args.hash;
+		let N = args.N;
+		let g = args.g;
+		let s = args.s;
 		let B = args.B;
-		let N = arg.N;
-		let g = arg.g;
-		let s = arg.s;
-		this.cli = srp6aFun.clientInit(g, N, s, this.id, this.pass);
-		let M1 = srp6aFun.clientComputeM1(this.cli, B);
-		let arg = {"M1": M1};
-		return packCheck(command, arg);
+		s =commonFun.strHex2Bytes(s);
+		B = commonFun.strHex2Bytes(B); // HEX to byte
+
+		this.cli._setHash(this.cli, hash);
+		this.cli._setParameter(this.cli, g, N, 1024);
+		this.cli.setSalt(s);  // 设置cli的salt
+		this.cli.setB(B); 
+		this.cli.clientComputeS();
+		let a = "60975527035CF2AD1989806F0407210BC81EDC04E2762A56AFD529DDDA2D4393";
+		let A = this.cli._setA(a)   // cli设置a
+		// let A = this.cli.generateA();
+		if (this.cli.err != NoError) {
+			return this.cli.err;
+		}
+		console.log(this.cli._S.toString())
+		let M1 = this.cli.computeM1(this.cli);
+		console.log(M1.toString())
+		let arg = {"A":A, "M1":M1};	
+		return this.packCheck(command, arg);
 	}
 	packMsg(type) {
 		this.fillHeader(type, 0);	
@@ -230,16 +257,24 @@ class MsgHeader {
 				this.sendSrp6a3(arg);
 				break;
 			case 'SRP6a4':
-				this.verifySrp6a(arg);
+				this.verifySrp6aM2(arg);
 				break;			
 		}
 	}
-	verifySrp6a(args) {
+	verifySrp6aM2(args) {
 		let M2 = args.M2;
-		srp6aFun.verifyM2(this.cli, M2);
+		let M2_min = this.cli.computeM2(this.cli);
+		// console.log(M2.toString())
+		console.log(M2_min.toString())
+		// if (M2.toString() != M2_min.toString()) {
+		// 	this.err = "srp6a M2 not equal";
+		// 	throw new Error(this.err);
+		// }
 	}
 	forbidden(args) {
-
+		let reason = args.reason;
+		this.err = "AuthenticationException " + reason;
+		return this.err;
 	}
 	//
 	unpackAnswer(uint8Arr) {

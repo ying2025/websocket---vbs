@@ -36,17 +36,16 @@ function Srp6aBase() {
 	   salt = commonFun.bytes2Str(salt[salt.length-1]);  // 将其转为16进制字符串
 	   return salt;
 	}
-
+	this.err = "";
 	this.randomBytes = function(arr) { //random generate
-		let err;
 		if (arr.length <= 0) {
-			err = "Parameter Error";
-			return err; // return err
+			this.err = "Parameter Error";
+			return this.err; // return err
 		}
 		let rand = commonFun.randomWord(true, MinSaltSize, MinSaltSize);
 		if (rand.length == 0) {
-			err = "Generate Error";
-			return err; 
+			this.err = "Generate Error";
+			return this.err; 
 		}
 		arr.push(rand);
 		return emptyString;
@@ -56,7 +55,8 @@ function Srp6aBase() {
 	this._padCopy = function(dst, src) {
 		if (src == undefined || dst.length < src.length) {
 			console.error("Cann't reach here, dst length is shorter than src");
-			return;
+			this.err = "Cann't reach here, dst length is shorter than src";
+			return this.err;
 		}
 		let n = dst.length - src.length;
 
@@ -275,7 +275,6 @@ function Srp6aClient() {
 		}
 		let b_i1 = bigInterger(i1).toString(16);
 		let v_i1 = commonFun.str2Bytes(b_i1);
-
 		this._A = new Array(this.byteLen);
 		this._padCopy(this._A, v_i1);
 		return this._A;
@@ -358,75 +357,18 @@ function Srp6aClient() {
 
 }
 Srp6aClient.prototype = new Srp6aBase();
-function NewClient(g, N, bits, hashName) {
+function NewClient() {
 	let cli = new Srp6aClient();
 	cli = Object.assign(cli, commonFun.deepClone(srp6aBase));
-	cli._setHash(cli, hashName);
-	cli._setParameter(cli, g, N, bits);
 	return cli;
 }
 
-function clientInit(g, N, s, id, pass) {
-	let bits = 1024;
-	let hashName = "SHA1";
-	let a = "60975527035CF2AD1989806F0407210BC81EDC04E2762A56AFD529DDDA2D4393";
-	let salt = commonFun.str2Bytes(s);
-
-	let cli = NewClient(g, N, bits, hashName);
-	cli.setIdentity(id, pass); // 设置cli的id,pass
-	cli.setSalt(salt);  // 设置cli的salt	
-
-	let v = cli.computeV();  // 计算cli的_v
-
-	let A = cli._setA(a);   // generate A
-	return [A, v, cli];
-}
-function clientComputeM1(cli, B) {
-	cli.setB(B);   // cli设置B
-	let S = cli.clientComputeS(); // 计算cli的S
-	let M1 = cli.computeM1(cli);  
-	return M1;
-}
-function verifyM2(cli, M2) {
-	let M22 = cli.computeM2(cli);
-	if (M22.toString() == M2.toString()) {
-		console.log("---------Pass---------", M22.toString());
-		return [cli._S, cli._N];
-	} else {
-		console.log("---------Fail---------", M22.toString());
-	}
-}
-
-function TestSrp6aFixedParam() {
-	let N = "EEAF0AB9ADB38DD69C33F80AFA8FC5E86072618775FF3C0B9EA2314C" +
-                "9C256576D674DF7496EA81D3383B4813D692C6E0E0D5D8E250B98BE4" +
-                "8E495C1D6089DAD15DC7D7B46154D6B6CE8EF4AD69B15D4982559B29" +
-                "7BCF1885C529F566660E57EC68EDBC3C05726CC02FD4CBF4976EAA9A" +
-                "FD5138FE8376435B9FC61D2FC0EB06E3";
-	let hexSalt = "BEB25379D1A8581EB5A727673A2441EE";   
-	// let a = "60975527035CF2AD1989806F0407210BC81EDC04E2762A56AFD529DDDA2D4393";
-	let id = "alice";
-	let pass = "password123";
-	let B = [189,12,97,81,44,105,44,12,182,208,65,250,1,187,21,45,73,22,161,231,122,244,106,225,5,57,48,17,186,243,137,100,220,70,160,103,13,209,37,185,90,152,22,82,35,111,153,217,182,129,203,248,120,55,236,153,108,109,160,68,83,114,134,16,208,198,221,181,139,49,136,133,215,216,44,127,141,235,117,206,123,212,251,170,55,8,158,111,156,96,89,243,136,131,142,122,0,3,11,51,30,183,104,64,145,4,64,177,178,122,174,174,235,64,18,183,215,102,82,56,168,227,251,0,75,17,123,88];
-	let M2 = [11,10,106,211,2,78,121,181,202,208,64,66,171,179,163,245,146,210,12,23];
-
-	let [A, v, cli] = clientInit(2, N, hexSalt, id, pass);
-	let M1 = clientComputeM1(cli, B);
-	// console.log(M1.toString())
-	verifyM2(cli, M2);
-}
-// TestSrp6aFixedParam();
-
 if (typeof(window) === 'undefined') {
     module.exports = {
-		clientInit,
-		clientComputeM1,
-		verifyM2
+		NewClient
 	}
 } else {
     window.utils = {
-    	clientInit,
-		clientComputeM1,
-		verifyM2
+    	NewClient
     }
 }

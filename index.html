@@ -7,9 +7,9 @@
 <body>
 	<div>
 	    <input type="text" id="txt">
-	    <input type="button" id="connect" value="连接" onclick="connectting()">
-	    <input type="button" id="submit" value="发送数据" onclick="sendMsg()">
-	    <input type="button" id="close" value="关闭连接" onclick="closeConn()">
+	    <input type="button" id="connect" value="Connect" onclick="connectting()">
+	    <input type="button" id="submit" value="Send Data" onclick="sendMsg()">
+	    <input type="button" id="close" value="Close Connect" onclick="closeConn()">
 	</div>
 
    <div id="info"></div>
@@ -46,13 +46,13 @@
 		function connectting() {
 			let ele = document.createElement('div');
 			if (client != undefined && client.readyState == 2) {
-				ele.innerText = '【服务端 已连接】';
+				ele.innerText = '【Server already connect】';
 				document.getElementById('info').appendChild(ele);
 				return;
 			}
 			
 			if (!window.WebSocket) {
-	            ele.innerText = "  您的浏览器不支持ws<br/>";
+	            ele.innerText = "  Your browser don't support ws<br/>";
 	            document.getElementById('info').appendChild(ele);
 	            return;
 	        }
@@ -63,40 +63,51 @@
 			client = new ClientSocket();
 			client.connect('wss://echo.websocket.org', function(readyState) {
 				if (readyState == 2) {
-					ele.innerText = '【服务端 处于正常服务】';
+					ele.innerText = '【Server is in normal service】';
 				} else if (readyState == 4) {
-					ele.innerText = '【服务端 连接断开】';
+					ele.innerText = '【Server is disconnect】';
 				} else{
-					ele.innerText = '【服务端 处于异常服务】' + readyState;
+					ele.innerText = '【Server is exception service】' + readyState;
 				}
 				document.getElementById('info').appendChild(ele);
 			});
+			let conServerTime = setTimeout(() => {
+				if (client.ws.readyState == 0) {
+					ele.innerText = '【Server is busy, please try again later !】';
+					document.getElementById('info').appendChild(ele);
+					clearTimeout(conServerTime);
+					return;
+				}
+			}, 2000);
 		}
 
 		function sendMsg() {
 			let ele = document.createElement('div');
 			let txt = document.getElementById('txt');
 			let value = txt.value;
-			if (client == undefined) {
-				ele.innerText = "未连接服务器，请先连接服务器！";
+			if (client.readyState == 1) {
+				ele.innerText = "You are not connected to the server, please connect to the server first！";
 	        	document.getElementById('info').appendChild(ele);
 	        	return;
 			}
 			if (value == "") {
-				ele.innerText = "数据不能为空！";
+				ele.innerText = "Data cann't be empty！";
 	        	document.getElementById('info').appendChild(ele);
 	        	return;
 			}
-			client.sendData(txt.value);
+			err = client.sendData(txt.value);
+			if (err != NoError) {
+				ele.innerText = '【Error: 】' + err;
+			}
 			client.ws.onmessage = (result) => {
 				let dataMsg = client.getData(result.data).then((data) => {
 					console.log("Rece data", data);
 					if (!data.hasOwnProperty("arg")) {
 						return;
 					}
-			    	ele.innerText = '【接收到数据】' + data.arg;
+			    	ele.innerText = '【Receive Data: 】' + data.arg;
 			    }).catch((error) => {
-			    	ele.innerText = '【接收到异常数据为】' + error;
+			    	ele.innerText = '【Receive exception data: 】' + error;
 			    });
 			    document.getElementById('info').appendChild(ele);
 			}
@@ -106,20 +117,20 @@
 		function closeConn() {
 			let ele = document.createElement('div');
 			if (client == undefined) {
-				ele.innerText = '【未连接服务器，请先连接服务器！】';
+				ele.innerText = '【You are not connected to the server, please connect to the server first！】';
 				document.getElementById('info').appendChild(ele);
 				return;
 			} else if (client.readyState == 4) {
-				ele.innerText = '【客户端 已断开连接】';
+				ele.innerText = '【Server is disconnect】';
 				document.getElementById('info').appendChild(ele);
 				return;
 			}
 			client.close().then((result) => {
 				console.log("closing : " ,result);
-				ele.innerText = '【客户端 关闭连接】';
+				ele.innerText = '【Server close connection success !】';
 				document.getElementById('info').appendChild(ele);
 			}).catch((error) => {
-				ele.innerText = '【客户端 关闭连接失败】' + error;
+				ele.innerText = '【Server close connection fail, 】' + error;
 				 document.getElementById('info').appendChild(ele);
 			}); 
 	       

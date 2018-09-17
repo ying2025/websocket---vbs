@@ -102,7 +102,10 @@ function ClientSocket() {
     ClientSocket.prototype.sendData = function(msgBody) {
     	if (that.readyState  == that.connectStatus.open) {
 			let txid = _generateTxid();
-			
+			if (that.requestNumber.length > 5) {
+				that.err = "Please send message to server later !";
+				return that.err;
+			}
 			let data = that.msgHead.packQuest(txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
 	    	that.ws.send(data);
 	    	that.requestNumber[i++] = txid;
