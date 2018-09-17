@@ -114,16 +114,15 @@ class MsgHeader {
 		this.cli._setParameter(this.cli, g, N, 1024);
 		this.cli.setSalt(s);  // 设置cli的salt
 		this.cli.setB(B); 
-		this.cli.clientComputeS();
+
 		let a = "60975527035CF2AD1989806F0407210BC81EDC04E2762A56AFD529DDDA2D4393";
 		let A = this.cli._setA(a)   // cli设置a
 		// let A = this.cli.generateA();
 		if (this.cli.err != NoError) {
 			return this.cli.err;
 		}
-		console.log(this.cli._S.toString())
+		this.cli.clientComputeS();
 		let M1 = this.cli.computeM1(this.cli);
-		console.log(M1.toString())
 		let arg = {"A":A, "M1":M1};	
 		return this.packCheck(command, arg);
 	}
@@ -264,12 +263,10 @@ class MsgHeader {
 	verifySrp6aM2(args) {
 		let M2 = args.M2;
 		let M2_min = this.cli.computeM2(this.cli);
-		// console.log(M2.toString())
-		console.log(M2_min.toString())
-		// if (M2.toString() != M2_min.toString()) {
-		// 	this.err = "srp6a M2 not equal";
-		// 	throw new Error(this.err);
-		// }
+		if (M2.toString() != M2_min.toString()) {
+			this.err = "srp6a M2 not equal";
+			throw new Error(this.err);
+		}
 	}
 	forbidden(args) {
 		let reason = args.reason;

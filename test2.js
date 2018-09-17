@@ -19,6 +19,6 @@ function test() {
 	let argv = {
 		"M2": m2
 	};
-	// msgBody.verifySrp6aM2(argv);
+	msgBody.verifySrp6aM2(argv);
 }
 test()

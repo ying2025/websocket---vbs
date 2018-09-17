@@ -1321,7 +1321,7 @@ class MsgHeader {
 			return this.err;
 		}
 		this.cli = new srp6aClient();
-
+		// let identity = args.id;
 		this.cli.setIdentity(this.id, this.pass);
 		let command = "SRP6a1";
 		let arg = {"I": this.id};
@@ -1344,14 +1344,16 @@ class MsgHeader {
 		this.cli._setParameter(this.cli, g, N, 1024);
 		this.cli.setSalt(s);  // 设置cli的salt
 		this.cli.setB(B); 
-		this.cli.clientComputeS();
-		let A = this.cli.generateA();
+
+		let a = "60975527035CF2AD1989806F0407210BC81EDC04E2762A56AFD529DDDA2D4393";
+		let A = this.cli._setA(a)   // cli设置a
+		// let A = this.cli.generateA();
 		if (this.cli.err != NoError) {
 			return this.cli.err;
 		}
+		this.cli.clientComputeS();
 		let M1 = this.cli.computeM1(this.cli);
-		let arg = {"A":A, "M1":M1};
-		
+		let arg = {"A":A, "M1":M1};	
 		return this.packCheck(command, arg);
 	}
 	packMsg(type) {
@@ -1484,13 +1486,17 @@ class MsgHeader {
 				this.sendSrp6a3(arg);
 				break;
 			case 'SRP6a4':
-				this.verifySrp6a(arg);
+				this.verifySrp6aM2(arg);
 				break;			
 		}
 	}
-	verifySrp6a(args) {
+	verifySrp6aM2(args) {
 		let M2 = args.M2;
-		// srp6aFun.verifyM2(this.cli, M2);
+		let M2_min = this.cli.computeM2(this.cli);
+		if (M2.toString() != M2_min.toString()) {
+			this.err = "srp6a M2 not equal";
+			throw new Error(this.err);
+		}
 	}
 	forbidden(args) {
 		let reason = args.reason;
