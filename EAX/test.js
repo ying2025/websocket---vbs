@@ -40,7 +40,7 @@ function test2() {
     // console.log("ct: ", ct);
     // console.log("msgB1 ",vec.msg.toLowerCase(), "ciphertext match ["+"]");
     let pt = eax.decrypt(et, nonceBytes, [headerBytes]);
-    console.log(pt.toString(), "##", (vec.msg+msgBytes4+msgBytes5).toLowerCase(), "plaintext match ["+"]");
+    console.log(pt.toString(), "##", (vec.msg+vec.msg2+msgBytes4+msgBytes5).toLowerCase(), "plaintext match ["+"]");
 }
 
 // mulityTest();
