@@ -168,7 +168,8 @@ class MsgHeader {
      *  @param {method}  method name
      *  @param {ctx}  context
      *  @param {args}  param
-     *  Additional describe: 
+     *  Additional describe: If encrypt then the format is nonce(8 bytes) + header(8 bytes) + message(ciphertext)
+     *                   else header(8 bytes) + message(Plaintext)
      */
 	packQuest(txid, service, method, ctx, args) {
 		let q = this._quest;
@@ -214,6 +215,11 @@ class MsgHeader {
 		}
 		return msg.buffer;
 	}
+	/**
+     *  @dev cryptoData
+     *  Fun: create ciphex object, then encrypt message
+     *  @param {uint8Msg}  Data to be encrypted
+     */
 	cryptoData(uint8Msg) {
 		if (typeof(window) === 'undefined') {
 			eval(aesContent);
@@ -232,6 +238,11 @@ class MsgHeader {
 	    let et = eax.finalize();
 	    return et;
 	}
+	/**
+     *  @dev decryptData
+     *  Fun: create ciphex object, then encrypt message
+     *  @param {uint8Msg}  Data to be encrypted
+     */
 	decryptData(et) {
 		let keyBytes = CryptoJS.enc.Hex.parse(this.vec.key),
 			nonceBytes = CryptoJS.enc.Hex.parse(this.vec.nonce),
@@ -272,7 +283,11 @@ class MsgHeader {
 		// adjust the len, avoid unreal bytes
 		return {sigBytes: len, words: words}; 
 	}
-	// TODO encryption
+	/**
+     *  @dev unpackCheck
+     *  Fun: Unpack command and arg, according to command, send the relevant command to server 
+     *  @param {uint8Arr}  command and arg
+     */
 	unpackCheck(uint8Arr) {
 		this._messageHeader.type = 'C';
 		let c = Object.assign(this._messageHeader, this._check);
@@ -286,6 +301,12 @@ class MsgHeader {
 		}
 		return msg;
 	}
+	/**
+     *  @dev dealCmd
+     *  Fun: According to command, send different command and param.
+     *  @param {command}  command
+     *  @param {arg} param
+     */
 	dealCmd(command, arg) {
 		let msg;
 		switch(command) {
@@ -307,6 +328,11 @@ class MsgHeader {
 		}
 		return msg;
 	}
+	/**
+     *  @dev verifySrp6aM2
+     *  Fun: According to srp6a, Compute M2, verify server send M2. Confirm the public key.
+     *  @param {args} param
+     */
 	verifySrp6aM2(args) {
 		let M2 = args.M2;
 		let M2_min = this.cli.computeM2(this.cli);
@@ -314,15 +340,25 @@ class MsgHeader {
 			this.err = "srp6a M2 not equal";
 			return this.err;
 		}
-		this.vec.key = this.cli._S; // consultate the public key
+		this._isEnc = true;  // Encrypt flag
+		this.vec.key = this.cli._S; 
 		return true;
 	}
+	/**
+     *  @dev forbidden
+     *  Fun: Return why forbidden encrypt.
+     *  @param {args} param
+     */
 	forbidden(args) {
 		let reason = args.reason;
 		this.err = "Authentication Exception " + reason;
 		return this.err;
 	}
-	//
+	/**
+     *  @dev forbidden
+     *  Fun: Return why forbidden encrypt.
+     *  @param {args} param
+     */
 	unpackAnswer(uint8Arr) {
 		// Normal
 		this._messageHeader.type = 'A';
@@ -400,7 +436,6 @@ class MsgHeader {
 		switch (type) {
 			case 'H': 
 		    	msg = Object.assign(this._messageHeader, {type:'H'});
-		    	this._isEnc = true;
 		    	break;
 		    case 'B':
 		    	msg = Object.assign(this._messageHeader, {type:'B'});
