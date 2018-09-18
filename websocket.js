@@ -130,7 +130,8 @@ function ClientSocket() {
 			if (typeof msg.type != "undefined") {
 				switch (msg.type) {
 					case 'C':          
-						that.readyState  = 1; // 
+						that.readyState  = 1; //
+						that.ws.send(msg);
 						break;
 					case 'H':
 						that.readyState  = 2; // Can send message

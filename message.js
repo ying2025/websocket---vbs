@@ -35,7 +35,7 @@ class MsgHeader {
 			arg: {}
 		};
 		this._check = {
-			command: "",
+			cmd: "",
 			arg: {}
 		};
 		this._isEnc = false; // whether encrypt
@@ -49,11 +49,16 @@ class MsgHeader {
             header: "126735FCC320D25A",
             ct: "CB8920F87A6C75CFF39627B56E3ED197C552D295A7CFC46AFC253B4652B1AF3795B124AB6E"
         };
-    	this.accountId = "alice";
     	this.id = "alice";
     	this.pass = "password123";
     	this.cli = null;
 	}
+	/**
+     *  @dev fillHeader
+     *  Fun: Pack the header of the message
+     *  @param {type} message type
+     *  @param {len}  message length
+     */
 	fillHeader(type, len) {
 		if (len < 0) {
 			this.err = "Can't reach here";
@@ -71,19 +76,29 @@ class MsgHeader {
 		this.packet[6] = (len >> 8) & 0xFF;
 		this.packet[7] = len & 0xFF;
 	}
+	/**
+     *  @dev packCheck
+     *  Fun: Pack the Srp6a message round
+     *  @param {command} command
+     *  @param {args}  Srp6a message round
+     */
 	packCheck(command, args) {
 		let cmdBytes = vbsEncode.encodeVBS(command);
 		let argBytes = vbsEncode.encodeVBS(args);
-		this.fillHeader('C', 0);
+		
 		let n = cmdBytes.byteLength + argBytes.byteLength;
-
+		this.fillHeader('C', n);
 		let u8a = new Uint8Array(8 + n);
 		u8a.set(this.packet, 0);
-		u8a.set(cmdBytes, 8);
-		u8a.set(argBytes, 8 + cmdBytes.byteLength);
-		// TODO
-		// sendMsg(u8a.buffer); 
+		u8a.set(new Uint8Array(cmdBytes), 8);
+		u8a.set(new Uint8Array(argBytes), 8 + cmdBytes.byteLength);
+		return u8a.buffer;
 	}
+	/**
+     *  @dev sendSrp6a1
+     *  Fun: create client object, set id and password of the client, send id to server.
+     *  @param {args}  Srp6a message round
+     */
 	sendSrp6a1(args) {
 		let method = args.method;
 		if (method != "SRP6a") {
@@ -91,23 +106,32 @@ class MsgHeader {
 			return this.err;
 		}
 		this.cli = new srp6aClient();
-		// let identity = args.id;
-		this.cli.setIdentity(this.id, this.pass);
+		let identity = this.id;
+		let pass = this.pass;
+		this.cli.setIdentity(identity, pass);
 		let command = "SRP6a1";
-		let arg = {"I": this.id};
+		let arg = {"I": identity};
 		return this.packCheck(command, arg);
 	}
+	/**
+     *  @dev sendSrp6a3
+     *  Fun: set param of the client, generate A, compute M1.
+     *           Send A and M1 to Server.
+     *  @param {args}  Srp6a message round
+     */
 	sendSrp6a3(args) {
 		let command = "SRP6a3";
 		if (this.cli == null) {
 			this.err = "Client cann't be empty !";
+			return this.err;
 		}
+		
 		let hash = args.hash;
 		let N = args.N;
 		let g = args.g;
 		let s = args.s;
 		let B = args.B;
-		s =commonFun.strHex2Bytes(s);
+		s =	commonFun.strHex2Bytes(s);
 		B = commonFun.strHex2Bytes(B); // HEX to byte
 
 		this.cli._setHash(this.cli, hash);
@@ -115,22 +139,37 @@ class MsgHeader {
 		this.cli.setSalt(s);  // 设置cli的salt
 		this.cli.setB(B); 
 
-		let a = "60975527035CF2AD1989806F0407210BC81EDC04E2762A56AFD529DDDA2D4393";
-		let A = this.cli._setA(a)   // cli设置a
-		// let A = this.cli.generateA();
+		// let a = "60975527035CF2AD1989806F0407210BC81EDC04E2762A56AFD529DDDA2D4393";
+		// let A = this.cli._setA(a)   // cli设置a
+		let A = this.cli.generateA();
+		this.cli.clientComputeS();
+		let M1 = this.cli.computeM1(this.cli);
 		if (this.cli.err != NoError) {
 			return this.cli.err;
 		}
-		this.cli.clientComputeS();
-		let M1 = this.cli.computeM1(this.cli);
 		let arg = {"A":A, "M1":M1};	
 		return this.packCheck(command, arg);
 	}
+	/**
+     *  @dev packMsg
+     *  Fun: send header to server
+     *  @param {type}  message type
+     */
 	packMsg(type) {
 		this.fillHeader(type, 0);	
 		let u8a = new Uint8Array(this.packet);
 		return u8a.buffer;
 	}
+	/**
+     *  @dev packQuest
+     *  Fun: pack message, send to server.
+     *  @param {txid}  query txid
+     *  @param {service}  service name
+     *  @param {method}  method name
+     *  @param {ctx}  context
+     *  @param {args}  param
+     *  Additional describe: 
+     */
 	packQuest(txid, service, method, ctx, args) {
 		let q = this._quest;
 		q.txid = txid;
@@ -236,41 +275,51 @@ class MsgHeader {
 	// TODO encryption
 	unpackCheck(uint8Arr) {
 		this._messageHeader.type = 'C';
-		let c = Object.assgin(this._messageHeader, this._check);
+		let c = Object.assign(this._messageHeader, this._check);
 		let pos = 0;
-		[c.cmd, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
+		[c.cmd, pos] = vbsDecode.decodeVBS(uint8Arr, 8);		
 		[c.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-		this.dealCmd(c.cmd, c.arg);
 
-		return c;
+		let msg = this.dealCmd(c.cmd, c.arg);
+		if (this.err != NoError) {
+			return this.err;
+		}
+		return msg;
 	}
 	dealCmd(command, arg) {
+		let msg;
 		switch(command) {
 			case 'FORBIDDEN':
 				this.forbidden(arg);
 				break; 
 			case 'AUTHENTICATE':
-				this.sendSrp6a1(arg);
+				msg = this.sendSrp6a1(arg);
 				break;
 			case 'SRP6a2':
-				this.sendSrp6a3(arg);
+				msg = this.sendSrp6a3(arg);
 				break;
 			case 'SRP6a4':
-				this.verifySrp6aM2(arg);
-				break;			
+				msg = this.verifySrp6aM2(arg);
+				break;		
+			default:
+				this.err = "Unknown command type !";	
+				return;
 		}
+		return msg;
 	}
 	verifySrp6aM2(args) {
 		let M2 = args.M2;
 		let M2_min = this.cli.computeM2(this.cli);
 		if (M2.toString() != M2_min.toString()) {
 			this.err = "srp6a M2 not equal";
-			throw new Error(this.err);
+			return this.err;
 		}
+		this.vec.key = this.cli._S; // consultate the public key
+		return true;
 	}
 	forbidden(args) {
 		let reason = args.reason;
-		this.err = "AuthenticationException " + reason;
+		this.err = "Authentication Exception " + reason;
 		return this.err;
 	}
 	//
@@ -351,7 +400,7 @@ class MsgHeader {
 		switch (type) {
 			case 'H': 
 		    	msg = Object.assign(this._messageHeader, {type:'H'});
-		    	// this._isEnc = true;
+		    	this._isEnc = true;
 		    	break;
 		    case 'B':
 		    	msg = Object.assign(this._messageHeader, {type:'B'});
@@ -366,7 +415,7 @@ class MsgHeader {
 		    	this.err = "Unknown message type" + type;
 		}
 		if (this.err != NoError) {
-			return this.err;
+			throw new Error(this.err);
 		}
 		return msg;
 	}

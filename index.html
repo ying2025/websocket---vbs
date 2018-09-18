@@ -61,7 +61,7 @@
 			   // wss://echo.websocket.org
 			// client = new ClientSocket('ws://192.168.200.93:8888/');
 			client = new ClientSocket();
-			client.connect('wss://echo.websocket.org', function(readyState) {
+			client.connect('ws://192.168.200.113:8888/', function(readyState) {
 				if (readyState == 2) {
 					ele.innerText = '【Server is in normal service】';
 				} else if (readyState == 4) {
