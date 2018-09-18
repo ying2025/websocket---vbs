@@ -111,6 +111,7 @@ class MsgHeader {
 		this.cli.setIdentity(identity, pass);
 		let command = "SRP6a1";
 		let arg = {"I": identity};
+		this._isEnc = true;  // Encrypt flag
 		return this.packCheck(command, arg);
 	}
 	/**
@@ -340,7 +341,6 @@ class MsgHeader {
 			this.err = "srp6a M2 not equal";
 			return this.err;
 		}
-		this._isEnc = true;  // Encrypt flag
 		this.vec.key = this.cli._S; 
 		return true;
 	}
@@ -355,9 +355,9 @@ class MsgHeader {
 		return this.err;
 	}
 	/**
-     *  @dev forbidden
-     *  Fun: Return why forbidden encrypt.
-     *  @param {args} param
+     *  @dev unpackAnswer
+     *  Fun: Unpack the receive message, if status is 0, the message is normal, or check the reason.
+     *  @param {uint8Arr} receive data
      */
 	unpackAnswer(uint8Arr) {
 		// Normal
@@ -394,6 +394,9 @@ class MsgHeader {
 		}
 		
 	}
+	/**
+     *  @dev unpackAnswerArg
+     */
 	unpackAnswerArg(a, uint8Arr, pos) {
 		if (a.status == 0) { // normally
 			[a.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // arg
@@ -407,7 +410,11 @@ class MsgHeader {
 		}
 		return [a.arg, pos];
 	}
-	//
+	/**
+     *  @dev decodeHeader
+     *  Fun: According to the header, deal the message.
+     *  @param {uint8Arr} receive data
+     */
 	decodeHeader(uint8Arr) {
 		//  'A', 'H', 'B', 'C
 		if (uint8Arr == undefined || uint8Arr.length < 8) {
