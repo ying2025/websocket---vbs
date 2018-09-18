@@ -275,6 +275,10 @@ function Srp6aClient() {
 		}
 		let b_i1 = bigInterger(i1).toString(16);
 		let v_i1 = commonFun.str2Bytes(b_i1);
+		if (v_i1 == null) {
+			this._A.length = 0;
+			return this._A;
+		}
 		this._A = new Array(this.byteLen);
 		this._padCopy(this._A, v_i1);
 		return this._A;
