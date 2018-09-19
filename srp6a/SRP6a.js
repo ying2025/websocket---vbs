@@ -369,12 +369,3 @@ function NewClient() {
 module.exports = {
 	NewClient
 }
-// if (typeof(window) === 'undefined') {
-//     module.exports = {
-// 		NewClient
-// 	}
-// } else {
-//     window.utils = {
-//     	NewClient
-//     }
-// }
