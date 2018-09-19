@@ -366,13 +366,15 @@ function NewClient() {
 	cli = Object.assign(cli, commonFun.deepClone(srp6aBase));
 	return cli;
 }
-
-if (typeof(window) === 'undefined') {
-    module.exports = {
-		NewClient
-	}
-} else {
-    window.utils = {
-    	NewClient
-    }
+module.exports = {
+	NewClient
 }
+// if (typeof(window) === 'undefined') {
+//     module.exports = {
+// 		NewClient
+// 	}
+// } else {
+//     window.utils = {
+//     	NewClient
+//     }
+// }

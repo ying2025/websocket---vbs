@@ -131,7 +131,7 @@ function ClientSocket() {
 				switch (msg.type) {
 					case 'C':          
 						that.readyState  = 1; //
-						that.ws.send(msg);
+						that.ws.send(msg.data);
 						break;
 					case 'H':
 						that.readyState  = 2; // Can send message

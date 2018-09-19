@@ -1232,6 +1232,7 @@ const vbsEncode = require('./VBS/encode.js');
 const vbsDecode = require('./VBS/decode.js');
 const commonFun = require('./commonFun.js');
 const srp6aClient = require('./srp6a/SRP6a.js').NewClient;
+// const srp6aClient = require('./srp6a/SRP6a.js');
 
 if (typeof(window) === 'undefined') {
 	const fs = require("fs");
@@ -1341,6 +1342,7 @@ class MsgHeader {
 		this.cli.setIdentity(identity, pass);
 		let command = "SRP6a1";
 		let arg = {"I": identity};
+		this._isEnc = true;  // Encrypt flag
 		return this.packCheck(command, arg);
 	}
 	/**
@@ -1539,15 +1541,18 @@ class MsgHeader {
      */
 	dealCmd(command, arg) {
 		let msg;
+		let tempData;
 		switch(command) {
 			case 'FORBIDDEN':
 				this.forbidden(arg);
 				break; 
 			case 'AUTHENTICATE':
-				msg = this.sendSrp6a1(arg);
+				tempData = this.sendSrp6a1(arg);
+				msg = Object.assign({"data": tempData}, {"type":"C"});
 				break;
 			case 'SRP6a2':
-				msg = this.sendSrp6a3(arg);
+				tempData = this.sendSrp6a3(arg);
+				msg = Object.assign({"data": tempData}, {"type":"C"});
 				break;
 			case 'SRP6a4':
 				msg = this.verifySrp6aM2(arg);
@@ -1570,7 +1575,6 @@ class MsgHeader {
 			this.err = "srp6a M2 not equal";
 			return this.err;
 		}
-		this._isEnc = true;  // Encrypt flag
 		this.vec.key = this.cli._S; 
 		return true;
 	}
@@ -1585,9 +1589,9 @@ class MsgHeader {
 		return this.err;
 	}
 	/**
-     *  @dev forbidden
-     *  Fun: Return why forbidden encrypt.
-     *  @param {args} param
+     *  @dev unpackAnswer
+     *  Fun: Unpack the receive message, if status is 0, the message is normal, or check the reason.
+     *  @param {uint8Arr} receive data
      */
 	unpackAnswer(uint8Arr) {
 		// Normal
@@ -1624,6 +1628,9 @@ class MsgHeader {
 		}
 		
 	}
+	/**
+     *  @dev unpackAnswerArg
+     */
 	unpackAnswerArg(a, uint8Arr, pos) {
 		if (a.status == 0) { // normally
 			[a.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // arg
@@ -1637,7 +1644,11 @@ class MsgHeader {
 		}
 		return [a.arg, pos];
 	}
-	//
+	/**
+     *  @dev decodeHeader
+     *  Fun: According to the header, deal the message.
+     *  @param {uint8Arr} receive data
+     */
 	decodeHeader(uint8Arr) {
 		//  'A', 'H', 'B', 'C
 		if (uint8Arr == undefined || uint8Arr.length < 8) {
@@ -1671,7 +1682,8 @@ class MsgHeader {
 		    	msg = Object.assign(this._messageHeader, {type:'B'});
 		    	break;
 		    case 'C':
-		    	msg = this.unpackCheck(uint8Arr); // readyState: 1
+		    	let data = this.unpackCheck(uint8Arr); // readyState: 1
+		    	msg = Object.assign({"data":data}, {type:"C"});
 		    	break;
 		    case 'A':
 		    	msg = this.unpackAnswer(uint8Arr);
@@ -7453,16 +7465,18 @@ function NewClient() {
 	cli = Object.assign(cli, commonFun.deepClone(srp6aBase));
 	return cli;
 }
-
-if (typeof(window) === 'undefined') {
-    module.exports = {
-		NewClient
-	}
-} else {
-    window.utils = {
-    	NewClient
-    }
+module.exports = {
+	NewClient
 }
+// if (typeof(window) === 'undefined') {
+//     module.exports = {
+// 		NewClient
+// 	}
+// } else {
+//     window.utils = {
+//     	NewClient
+//     }
+// }
 
 },{"./srp6aCommonFun.js":28,"big-integer":10,"hash.js":12}],28:[function(require,module,exports){
 var bigInt  = require("big-integer");  // 引入大整型
@@ -7693,7 +7707,7 @@ function ClientSocket() {
 				switch (msg.type) {
 					case 'C':          
 						that.readyState  = 1; //
-						that.ws.send(msg);
+						that.ws.send(msg.data);
 						break;
 					case 'H':
 						that.readyState  = 2; // Can send message

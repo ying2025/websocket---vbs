@@ -2,6 +2,7 @@ const vbsEncode = require('./VBS/encode.js');
 const vbsDecode = require('./VBS/decode.js');
 const commonFun = require('./commonFun.js');
 const srp6aClient = require('./srp6a/SRP6a.js').NewClient;
+// const srp6aClient = require('./srp6a/SRP6a.js');
 
 if (typeof(window) === 'undefined') {
 	const fs = require("fs");
@@ -310,15 +311,18 @@ class MsgHeader {
      */
 	dealCmd(command, arg) {
 		let msg;
+		let tempData;
 		switch(command) {
 			case 'FORBIDDEN':
 				this.forbidden(arg);
 				break; 
 			case 'AUTHENTICATE':
-				msg = this.sendSrp6a1(arg);
+				tempData = this.sendSrp6a1(arg);
+				msg = Object.assign({"data": tempData}, {"type":"C"});
 				break;
 			case 'SRP6a2':
-				msg = this.sendSrp6a3(arg);
+				tempData = this.sendSrp6a3(arg);
+				msg = Object.assign({"data": tempData}, {"type":"C"});
 				break;
 			case 'SRP6a4':
 				msg = this.verifySrp6aM2(arg);
@@ -448,7 +452,8 @@ class MsgHeader {
 		    	msg = Object.assign(this._messageHeader, {type:'B'});
 		    	break;
 		    case 'C':
-		    	msg = this.unpackCheck(uint8Arr); // readyState: 1
+		    	let data = this.unpackCheck(uint8Arr); // readyState: 1
+		    	msg = Object.assign({"data":data}, {type:"C"});
 		    	break;
 		    case 'A':
 		    	msg = this.unpackAnswer(uint8Arr);
