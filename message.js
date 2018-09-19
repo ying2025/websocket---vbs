@@ -112,7 +112,7 @@ class MsgHeader {
 		this.cli.setIdentity(identity, pass);
 		let command = "SRP6a1";
 		let arg = {"I": identity};
-		this._isEnc = true;  // Encrypt flag
+		
 		return this.packCheck(command, arg);
 	}
 	/**
@@ -135,21 +135,23 @@ class MsgHeader {
 		let B = args.B;
 		s =	commonFun.strHex2Bytes(s);
 		B = commonFun.strHex2Bytes(B); // HEX to byte
-
+		
 		this.cli._setHash(this.cli, hash);
 		this.cli._setParameter(this.cli, g, N, 1024);
 		this.cli.setSalt(s);  // 设置cli的salt
 		this.cli.setB(B); 
 
-		// let a = "60975527035CF2AD1989806F0407210BC81EDC04E2762A56AFD529DDDA2D4393";
-		// let A = this.cli._setA(a)   // cli设置a
-		let A = this.cli.generateA();
+		let a = "60975527035CF2AD1989806F0407210BC81EDC04E2762A56AFD529DDDA2D4393";
+		let A = this.cli._setA(a)   // cli设置a
+		// let A = this.cli.generateA();
 		this.cli.clientComputeS();
 		let M1 = this.cli.computeM1(this.cli);
 		if (this.cli.err != NoError) {
 			return this.cli.err;
 		}
-		let arg = {"A":A, "M1":M1};	
+		let A1 = commonFun.bytes2Str(A);
+		let M11 = commonFun.bytes2Str(M1);
+		let arg = {"A":A1, "M1":M11};	
 		return this.packCheck(command, arg);
 	}
 	/**
@@ -318,11 +320,11 @@ class MsgHeader {
 				break; 
 			case 'AUTHENTICATE':
 				tempData = this.sendSrp6a1(arg);
-				msg = Object.assign({"data": tempData}, {"type":"C"});
+				msg = Object.assign({"content": tempData}, {"type":"C"});
 				break;
 			case 'SRP6a2':
 				tempData = this.sendSrp6a3(arg);
-				msg = Object.assign({"data": tempData}, {"type":"C"});
+				msg = Object.assign({"content": tempData}, {"type":"C"});
 				break;
 			case 'SRP6a4':
 				msg = this.verifySrp6aM2(arg);
@@ -341,11 +343,13 @@ class MsgHeader {
 	verifySrp6aM2(args) {
 		let M2 = args.M2;
 		let M2_min = this.cli.computeM2(this.cli);
-		if (M2.toString() != M2_min.toString()) {
+		let M2_mine = new Uint8Array(M2_min);
+		if (M2.toString() != M2_mine.toString()) {
 			this.err = "srp6a M2 not equal";
 			return this.err;
 		}
 		this.vec.key = this.cli._S; 
+		this._isEnc = true;  // Encrypt flag
 		return true;
 	}
 	/**

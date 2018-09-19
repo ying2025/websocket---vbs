@@ -66,6 +66,21 @@ function arrCopy(arr1, obj) {
 	}
 	return arr1;
 }
+// byte to hex 
+function bytes2Str(arr) {  
+    var str = "";  
+    if(arr == undefined) {
+      return;
+    }
+    for(var i=0; i<arr.length; i++){  
+       var tmp = arr[i].toString(16);  
+       if(tmp.length == 1) {  
+           tmp = "0" + tmp;  
+       }  
+       str += tmp;  
+    }  
+    return str;  
+}  
 
 function judgeIsBasicType(obj) {
 	let isBasic;
@@ -109,5 +124,6 @@ module.exports = {
     arrCopy,
     abToString,
     judgeIsBasicType,
-    strHex2Bytes
+    strHex2Bytes,
+    bytes2Str
 }
