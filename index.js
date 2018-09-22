@@ -1389,7 +1389,6 @@ class MsgHeader {
 		u8a.set(new Uint8Array(newMethod), n1);
 		u8a.set(new Uint8Array(newCtx), n1 + newMethod.byteLength);
 		u8a.set(new Uint8Array(newArg), n1 + n2);
-		console.log("Before encrypt:", u8a);
 		let msg;
 		let nonNum = vbsEncode.encodeVBS(this.send_nonce);
 		this.send_nonce += this.noce_increase_step;
@@ -1406,7 +1405,6 @@ class MsgHeader {
 			msg.set(this.packet, 0);
 			msg.set(u8a, 8);
 		}
-		console.log("msg:", msg);
 		return msg.buffer;
 	}
 	/**
@@ -1425,9 +1423,6 @@ class MsgHeader {
 	    	headerBytes = CryptoJS.enc.Hex.parse(this.vec.header);
 	    // let msgBytes = CryptoJS.lib.WordArray.create(uint8Msg);
 	    let msgBytes = this.convertUint8ArrayToWordArray(uint8Msg);
-	    console.log("keyBytes", this.convertWordArrayToUint8Array(keyBytes));
-	    console.log("nonceBytes", this.convertWordArrayToUint8Array(nonceBytes));
-	    console.log("headerBytes", this.convertWordArrayToUint8Array(headerBytes));
 	    let eax = CryptoJS.EAX.create(keyBytes);
 	    eax.prepareEncryption(nonceBytes, [headerBytes]);
 	    eax.update(msgBytes);
@@ -1444,7 +1439,6 @@ class MsgHeader {
 			nonceBytes = CryptoJS.enc.Hex.parse(this.vec.nonce),
 			headerBytes = CryptoJS.enc.Hex.parse(this.vec.header);
 		let eax = CryptoJS.EAX.create(keyBytes);
-
 		let etData = this.convertUint8ArrayToWordArray(et);
 		let pt = eax.decrypt(etData, nonceBytes, [headerBytes]);
 		return pt;
@@ -1681,11 +1675,11 @@ class MsgHeader {
 			this.err = "The length of message is less than 8 bytes !";
 			return this.err;
 		}
-		// if (this._isEnc) { 
-		// 	// Remain only encrypt data
-		// 	let data = new Uint8Array(uint8Arr.buffer, 8, uint8Arr.length - 8);
-		// 	return this.unpackAnswer(data);
-		// }
+		if (uint8Arr.length > 16 && uint8Arr[9] != 0x58 && uint8Arr[11] == 0x01) {
+			let data = new Uint8Array(uint8Arr.buffer, 8, uint8Arr.length - 8);
+			return this.unpackAnswer(data);
+
+		}
 		let type = String.fromCharCode(uint8Arr[2]);
 		let msg;
 

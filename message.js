@@ -193,7 +193,6 @@ class MsgHeader {
 			nonceBytes = CryptoJS.enc.Hex.parse(this.vec.nonce),
 			headerBytes = CryptoJS.enc.Hex.parse(this.vec.header);
 		let eax = CryptoJS.EAX.create(keyBytes);
-
 		let etData = this.convertUint8ArrayToWordArray(et);
 		let pt = eax.decrypt(etData, nonceBytes, [headerBytes]);
 		return pt;
@@ -430,11 +429,11 @@ class MsgHeader {
 			this.err = "The length of message is less than 8 bytes !";
 			return this.err;
 		}
-		// if (this._isEnc) { 
-		// 	// Remain only encrypt data
-		// 	let data = new Uint8Array(uint8Arr.buffer, 8, uint8Arr.length - 8);
-		// 	return this.unpackAnswer(data);
-		// }
+		if (uint8Arr.length > 16 && uint8Arr[9] != 0x58 && uint8Arr[11] == 0x01) {
+			let data = new Uint8Array(uint8Arr.buffer, 8, uint8Arr.length - 8);
+			return this.unpackAnswer(data);
+
+		}
 		let type = String.fromCharCode(uint8Arr[2]);
 		let msg;
 

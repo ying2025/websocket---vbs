@@ -108,10 +108,11 @@ function ClientSocket() {
 			}
 			let data = that.msgHead.packQuest(txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
 	    	that.ws.send(data);
-	    	that.requestNumber[i++] = txid;
-
-	    	let obj = {[txid]: data};
-	    	that.requestList.push(obj);
+	    	if (txid != 0) {
+	    		that.requestNumber[i++] = txid;
+	    		let obj = {[txid]: data};
+	    		that.requestList.push(obj);
+	    	}
 	    } else {
 	    	that.err = "Please connect to server";
 	    	return that.err;
