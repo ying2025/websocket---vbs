@@ -54,7 +54,7 @@ function ClientSocket() {
     	}
     	that.ws.onopen = function () {	
     		that.reconnectionAttempted = 0;
-			that.ws.send(that.msgHead.packMsg('H'));
+			// that.ws.send(that.msgHead.packMsg('H'));
 		};
 
 		that.ws.onmessage = function (e) {

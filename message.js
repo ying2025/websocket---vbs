@@ -96,65 +96,6 @@ class MsgHeader {
 		return u8a.buffer;
 	}
 	/**
-     *  @dev sendSrp6a1
-     *  Fun: create client object, set id and password of the client, send id to server.
-     *  @param {args}  Srp6a message round
-     */
-	sendSrp6a1(args) {
-		let method = args.method;
-		if (method != "SRP6a") {
-			this.err = "Unknown authenticate method "+ method;
-			return this.err;
-		}
-		this.cli = new srp6aClient();
-		let identity = this.id;
-		let pass = this.pass;
-		this.cli.setIdentity(identity, pass);
-		let command = "SRP6a1";
-		let arg = {"I": identity};
-		
-		return this.packCheck(command, arg);
-	}
-	/**
-     *  @dev sendSrp6a3
-     *  Fun: set param of the client, generate A, compute M1.
-     *           Send A and M1 to Server.
-     *  @param {args}  Srp6a message round
-     */
-	sendSrp6a3(args) {
-		let command = "SRP6a3";
-		if (this.cli == null) {
-			this.err = "Client cann't be empty !";
-			return this.err;
-		}
-		
-		let hash = args.hash;
-		let N = args.N;
-		let g = args.g;
-		let s = args.s;
-		let B = args.B;
-		s =	commonFun.strHex2Bytes(s);
-		B = commonFun.strHex2Bytes(B); // HEX to byte
-		
-		this.cli._setHash(this.cli, hash);
-		this.cli._setParameter(this.cli, g, N, 1024);
-		this.cli.setSalt(s);  // 设置cli的salt
-		this.cli.setB(B); 
-
-		let a = "60975527035CF2AD1989806F0407210BC81EDC04E2762A56AFD529DDDA2D4393";
-		let A = this.cli._setA(a)   // cli设置a
-		// let A = this.cli.generateA();
-		this.cli.clientComputeS();
-		let M1 = this.cli.computeM1(this.cli);
-		if (this.cli.err != NoError) {
-			return this.cli.err;
-		}
-		let A1 = commonFun.bytes2Str(A);
-		let M11 = commonFun.bytes2Str(M1);
-		let arg = {"A":A1, "M1":M11};	
-		return this.packCheck(command, arg);
-	}
-	/**
      *  @dev packMsg
      *  Fun: send header to server
      *  @param {type}  message type
@@ -210,6 +151,7 @@ class MsgHeader {
 			let ct = this.convertWordArrayToUint8Array(et);
 			msg = new Uint8Array(ct.byteLength + 16);	
 			msg.set(new Uint8Array(nonNum), 0);
+			// this.packet[3] = 0x01;
 			msg.set(this.packet, 8);
 			msg.set(ct, 16);	
 		} else {
@@ -235,7 +177,6 @@ class MsgHeader {
 	    	headerBytes = CryptoJS.enc.Hex.parse(this.vec.header);
 	    // let msgBytes = CryptoJS.lib.WordArray.create(uint8Msg);
 	    let msgBytes = this.convertUint8ArrayToWordArray(uint8Msg);
-
 	    let eax = CryptoJS.EAX.create(keyBytes);
 	    eax.prepareEncryption(nonceBytes, [headerBytes]);
 	    eax.update(msgBytes);
@@ -301,7 +242,7 @@ class MsgHeader {
 
 		let msg = this.dealCmd(c.cmd, c.arg);
 		if (this.err != NoError) {
-			return this.err;
+			return;
 		}
 		return msg;
 	}
@@ -336,6 +277,65 @@ class MsgHeader {
 		return msg;
 	}
 	/**
+     *  @dev sendSrp6a1
+     *  Fun: create client object, set id and password of the client, send id to server.
+     *  @param {args}  Srp6a message round
+     */
+	sendSrp6a1(args) {
+		let method = args.method;
+		if (method != "SRP6a") {
+			this.err = "Unknown authenticate method "+ method;
+			return;
+		}
+		this.cli = new srp6aClient();
+		let identity = this.id;
+		let pass = this.pass;
+		this.cli.setIdentity(identity, pass);
+		let command = "SRP6a1";
+		let arg = {"I": identity};
+		
+		return this.packCheck(command, arg);
+	}
+	/**
+     *  @dev sendSrp6a3
+     *  Fun: set param of the client, generate A, compute M1.
+     *           Send A and M1 to Server.
+     *  @param {args}  Srp6a message round
+     */
+	sendSrp6a3(args) {
+		let command = "SRP6a3";
+		if (this.cli == null) {
+			this.err = "Client cann't be empty !";
+			return;
+		}
+		
+		let hash = args.hash;
+		let N = args.N;
+		let g = args.g;
+		let s = args.s;
+		let B = args.B;
+		s =	commonFun.strHex2Bytes(s);
+		B = commonFun.strHex2Bytes(B); // HEX to byte
+		
+		this.cli._setHash(this.cli, hash);
+		this.cli._setParameter(this.cli, g, N, 1024);
+		this.cli.setSalt(s);  // 设置cli的salt
+		this.cli.setB(B); 
+
+		// let a = "60975527035CF2AD1989806F0407210BC81EDC04E2762A56AFD529DDDA2D4393";
+		// let A = this.cli._setA(a)   // cli设置a
+		let A = this.cli.generateA();
+		this.cli.clientComputeS();
+		let M1 = this.cli.computeM1(this.cli);
+		if (this.cli.err != NoError) {
+			return this.cli.err;
+		}
+		let A1 = commonFun.bytes2Str(A);
+		let M11 = commonFun.bytes2Str(M1);
+		let arg = {"A":A1, "M1":M11};	
+		return this.packCheck(command, arg);
+	}
+	/**
      *  @dev verifySrp6aM2
      *  Fun: According to srp6a, Compute M2, verify server send M2. Confirm the public key.
      *  @param {args} param
@@ -346,11 +346,12 @@ class MsgHeader {
 		let M2_mine = new Uint8Array(M2_min);
 		if (M2.toString() != M2_mine.toString()) {
 			this.err = "srp6a M2 not equal";
-			return this.err;
+			return;
 		}
-		this.vec.key = this.cli._S; 
+		this.cli.computeK(this.cli);
+		this.vec.key = commonFun.bytes2Str(this.cli._K);
+		this._messageHeader.flags = 0x01; // encrypt
 		this._isEnc = true;  // Encrypt flag
-		return true;
 	}
 	/**
      *  @dev forbidden
@@ -360,7 +361,7 @@ class MsgHeader {
 	forbidden(args) {
 		let reason = args.reason;
 		this.err = "Authentication Exception " + reason;
-		return this.err;
+		return;
 	}
 	/**
      *  @dev unpackAnswer
@@ -429,11 +430,11 @@ class MsgHeader {
 			this.err = "The length of message is less than 8 bytes !";
 			return this.err;
 		}
-		if (this._isEnc) { 
-			// Remain only encrypt data
-			let data = new Uint8Array(uint8Arr.buffer, 8, uint8Arr.length - 8);
-			return this.unpackAnswer(data);
-		}
+		// if (this._isEnc) { 
+		// 	// Remain only encrypt data
+		// 	let data = new Uint8Array(uint8Arr.buffer, 8, uint8Arr.length - 8);
+		// 	return this.unpackAnswer(data);
+		// }
 		let type = String.fromCharCode(uint8Arr[2]);
 		let msg;
 
@@ -447,7 +448,6 @@ class MsgHeader {
 				return this.err;
 			}
 		}
-
 		switch (type) {
 			case 'H': 
 		    	msg = Object.assign(this._messageHeader, {type:'H'});
@@ -457,7 +457,11 @@ class MsgHeader {
 		    	break;
 		    case 'C':
 		    	let data = this.unpackCheck(uint8Arr); // readyState: 1
-		    	msg = Object.assign({"data":data}, {type:"C"});
+		    	if (typeof data != "undefined") {
+		    		msg = Object.assign({"data":data}, {type:"C"});
+		    	} else {
+		    		msg = "Pass SRP6a Verify!";
+		    	}
 		    	break;
 		    case 'A':
 		    	msg = this.unpackAnswer(uint8Arr);

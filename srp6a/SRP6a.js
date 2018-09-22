@@ -277,7 +277,7 @@ function Srp6aClient() {
 		let v_i1 = commonFun.str2Bytes(b_i1);
 		if (v_i1 == null) {
 			this._A.length = 0;
-			return this._A;
+			return;
 		}
 		this._A = new Array(this.byteLen);
 		this._padCopy(this._A, v_i1);
@@ -358,7 +358,22 @@ function Srp6aClient() {
 		}
 		return this._S;
 	}
-
+	Srp6aClient.prototype.computeK = function(b) {
+		if (b._K.length == 0) {
+			// Compute: K = SHA1(PAD(S)) 
+			let buf1 = new Array(b.byteLen);
+			let h = b.hasher();
+			this._padCopy(buf1, b._S);
+			let u_temp = h.update(buf1).digest('hex');
+			b._K = commonFun.str2Bytes(u_temp);
+			if (b._K .length < 32) {
+				let buf2 = new Array(32);
+				this._padCopy(buf2, b._K);
+				b._K = buf2;
+			}
+		}
+		return b._K;
+	}
 }
 Srp6aClient.prototype = new Srp6aBase();
 function NewClient() {
