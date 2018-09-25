@@ -61,7 +61,7 @@
 			   // wss://echo.websocket.org
 			// client = new ClientSocket('ws://192.168.200.93:8888/');
 			client = new ClientSocket();
-			client.connect('ws://10.8.170.214:8888/', function(readyState) {
+			client.connect('ws://192.168.200.113:8888/', function(readyState) {
 				if (readyState == 2) {
 					ele.innerText = '【Server is in normal service】';
 				} else if (readyState == 4) {
@@ -73,7 +73,7 @@
 			});
 			let conServerTime = setTimeout(() => {
 				if (client.ws.readyState == 0) {
-					ele.innerText = '【Server is busy, please try again later !】';
+					ele.innerText = '【Server is disconnect !】';
 					document.getElementById('info').appendChild(ele);
 					clearTimeout(conServerTime);
 					return;
@@ -105,13 +105,21 @@
 					if (!data.hasOwnProperty("arg")) {
 						return;
 					}
-			    	ele.innerText = '【Receive Data: 】' + data.arg;
+					let tempRec = ShowTheObject(data.arg);
+			    	ele.innerText = '【Receive Data: 】' + tempRec;
 			    }).catch((error) => {
 			    	ele.innerText = '【Receive exception data: 】' + error;
 			    });
 			    document.getElementById('info').appendChild(ele);
 			}
 	       
+		}
+		function ShowTheObject(obj){
+		   let des = "";
+	       for(let name in obj){
+			 des += name + ":" + obj[name] + ";";
+	       }
+		   return des
 		}
 
 		function closeConn() {

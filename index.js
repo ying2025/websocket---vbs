@@ -1397,7 +1397,6 @@ class MsgHeader {
 			let ct = this.convertWordArrayToUint8Array(et);
 			msg = new Uint8Array(ct.byteLength + 16);	
 			msg.set(new Uint8Array(nonNum), 0);
-			// this.packet[3] = 0x01;
 			msg.set(this.packet, 8);
 			msg.set(ct, 16);	
 		} else {
@@ -1480,7 +1479,7 @@ class MsgHeader {
      */
 	unpackCheck(uint8Arr) {
 		this._messageHeader.type = 'C';
-		let c = Object.assign(this._messageHeader, this._check);
+		let c = Object.assign(this._check, this._messageHeader);
 		let pos = 0;
 		[c.cmd, pos] = vbsDecode.decodeVBS(uint8Arr, 8);		
 		[c.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
@@ -1616,7 +1615,7 @@ class MsgHeader {
 	unpackAnswer(uint8Arr) {
 		// Normal
 		this._messageHeader.type = 'A';
-		let a = Object.assign(this._messageHeader, this._answer);
+		let a = Object.assign(this._answer, this._messageHeader);
 
 		let len = ((uint8Arr[4] & 0xFF) << 24) + ((uint8Arr[5] & 0xFF) << 16) + ((uint8Arr[6] & 0xFF) << 8) + (uint8Arr[7] & 0xFF);
 		let pos = 0;
@@ -7713,10 +7712,11 @@ function ClientSocket() {
 			}
 			let data = that.msgHead.packQuest(txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
 	    	that.ws.send(data);
-	    	that.requestNumber[i++] = txid;
-
-	    	let obj = {[txid]: data};
-	    	that.requestList.push(obj);
+	    	if (txid != 0) {
+	    		that.requestNumber[i++] = txid;
+	    		let obj = {[txid]: data};
+	    		that.requestList.push(obj);
+	    	}
 	    } else {
 	    	that.err = "Please connect to server";
 	    	return that.err;
