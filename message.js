@@ -316,10 +316,9 @@ class MsgHeader {
 		B = commonFun.strHex2Bytes(B); // HEX to byte
 		
 		this.cli._setHash(this.cli, hash);
-		this.cli._setParameter(this.cli, g, N, 1024);
+		this.cli._setParameter(this.cli, g, N, N.length * 4); //N is string type rather than byte, so it multiply 4
 		this.cli.setSalt(s);  // 设置cli的salt
 		this.cli.setB(B); 
-
 		// let a = "60975527035CF2AD1989806F0407210BC81EDC04E2762A56AFD529DDDA2D4393";
 		// let A = this.cli._setA(a)   // cli设置a
 		let A = this.cli.generateA();
