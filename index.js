@@ -1288,7 +1288,7 @@ class MsgHeader {
 		this._isEnc = false; // whether encrypt
 		this.err = "";
 		this.packet = [];
-        this.send_nonce = send_nonce;
+		this.send_nonce = send_nonce;
     	this.noce_increase_step = send_add_state;
     	this.vec = {
             key: "8395FCF1E95BEBD697BD010BC766AAC3",
@@ -1404,6 +1404,7 @@ class MsgHeader {
 			msg.set(this.packet, 0);
 			msg.set(u8a, 8);
 		}
+		console.log("send data id ", txid);
 		return msg.buffer;
 	}
 	/**
@@ -1636,7 +1637,7 @@ class MsgHeader {
 		
 		[a.status, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 
-		[a.arg, pos] = this.unpackAnswerArg(a, uint8Arr, pos);
+		[a.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 
 		if (8+len == pos) { // Decode Right
 			return a;
@@ -7620,10 +7621,6 @@ function ClientSocket() {
     this.requestList = []; // record the request txid and data sequence
     this.url = '';
 
-	let st = {
-		index: 0, 
-		remains: 0
-	};
     this.connectStatus = {
     	noConnect: 0,  //  yet connect
     	connecting: 1, // connecting

@@ -17,10 +17,6 @@ function ClientSocket() {
     this.requestList = []; // record the request txid and data sequence
     this.url = '';
 
-	let st = {
-		index: 0, 
-		remains: 0
-	};
     this.connectStatus = {
     	noConnect: 0,  //  yet connect
     	connecting: 1, // connecting
