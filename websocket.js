@@ -149,7 +149,7 @@ function ClientSocket() {
 						break;
 				}
 			}
-		    console.log("Remaining request : ", that.requestNumber.length);
+		    // console.log("Remaining request : ", that.requestNumber.length);
 			return msg;
 		 }).catch(function (error) {
 		    return error;

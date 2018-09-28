@@ -96,7 +96,6 @@
 	        	return;
 			}
 			err = client.sendData(txt.value);
-			console.log(111, err != emptyString && err != undefined, err)
 			if (err != emptyString && err != undefined) {
 				ele.innerText = '【Error: 】' + err;
 				document.getElementById('info').appendChild(ele);

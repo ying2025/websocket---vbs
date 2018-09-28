@@ -1258,7 +1258,7 @@ if (typeof(window) === 'undefined') {
 }
 
 let emptyString = "";
-let MaxMessageSize = 64*1024*1024;
+let maxMessageSize = 64*1024*1024;
 let send_nonce = 30000000023234; // counter of sending to server 
 let send_add_state = 2; // The step of each increase
 
@@ -1310,7 +1310,7 @@ class MsgHeader {
 		if (len < 0) {
 			this.err = "Can't reach here";
 			return;
-		} else if (len > MaxMessageSize) {
+		} else if (len > maxMessageSize) {
 			this.err = "Size is to large" + len;
 			return;
 		}
@@ -7753,7 +7753,7 @@ function ClientSocket() {
 						break;
 				}
 			}
-		    console.log("Remaining request : ", that.requestNumber.length);
+		    // console.log("Remaining request : ", that.requestNumber.length);
 			return msg;
 		 }).catch(function (error) {
 		    return error;
