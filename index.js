@@ -1257,7 +1257,7 @@ if (typeof(window) === 'undefined') {
 	const eaxContent = fs.readFileSync("./EAX/eax.js", "utf8");
 }
 
-let NoError = "";
+let emptyString = "";
 let MaxMessageSize = 64*1024*1024;
 let send_nonce = 30000000023234; // counter of sending to server 
 let send_add_state = 2; // The step of each increase
@@ -1486,7 +1486,7 @@ class MsgHeader {
 		[c.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 
 		let msg = this.dealCmd(c.cmd, c.arg);
-		if (this.err != NoError) {
+		if (this.err != emptyString) {
 			return;
 		}
 		return msg;
@@ -1571,7 +1571,7 @@ class MsgHeader {
 		let A = this.cli.generateA();
 		this.cli.clientComputeS();
 		let M1 = this.cli.computeM1(this.cli);
-		if (this.cli.err != NoError) {
+		if (this.cli.err != emptyString) {
 			return this.cli.err;
 		}
 		let A1 = commonFun.bytes2Str(A);
@@ -1713,7 +1713,7 @@ class MsgHeader {
 		    default: 
 		    	this.err = "Unknown message type" + type;
 		}
-		if (this.err != NoError) {
+		if (this.err != emptyString) {
 			throw new Error(this.err);
 		}
 		return msg;
@@ -7606,7 +7606,7 @@ const commonFun = require('./commonFun.js');
 const vbsEncode = require('./VBS/encode.js');
 const vbsDecode = require('./VBS/decode.js');
 const  msgHeader  = require('./message.js').MsgHeader;
-let NoError = "";
+let emptyString = "";
 let WebSocketClient;
 if (typeof WebSocket == "undefined" && !process.env.browser) {
 	WebSocketClient = require("ws");
@@ -7701,10 +7701,10 @@ function ClientSocket() {
     ClientSocket.prototype.sendData = function(msgBody) {
     	if (that.readyState  == that.connectStatus.open) {
 			let txid = _generateTxid();
-			if (that.requestNumber.length > 5) {
-				that.err = "Please send message to server later !";
-				return that.err;
-			}
+			// if (that.requestNumber.length > 5) {
+			// 	that.err = "Please send message to server later !";
+			// 	return that.err;
+			// }
 			let data = that.msgHead.packQuest(txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
 	    	that.ws.send(data);
 	    	if (txid != 0) {
@@ -7742,7 +7742,8 @@ function ClientSocket() {
 					case 'B':
 						that.lockReconnect = false;
 						that.ws.onclose();
-						break;
+						let closeMsg = "Disconnect with server side";
+						return closeMsg;
 					case 'A':
 						// TODO 
 						that.requestNumber = that.requestNumber.filter(v => v!= msg.txid);

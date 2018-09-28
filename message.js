@@ -11,8 +11,8 @@ if (typeof(window) === 'undefined') {
 	const eaxContent = fs.readFileSync("./EAX/eax.js", "utf8");
 }
 
-let NoError = "";
-let MaxMessageSize = 64*1024*1024;
+let emptyString = "";
+let maxMessageSize = 64*1024*1024;
 let send_nonce = 30000000023234; // counter of sending to server 
 let send_add_state = 2; // The step of each increase
 
@@ -64,7 +64,7 @@ class MsgHeader {
 		if (len < 0) {
 			this.err = "Can't reach here";
 			return;
-		} else if (len > MaxMessageSize) {
+		} else if (len > maxMessageSize) {
 			this.err = "Size is to large" + len;
 			return;
 		}
@@ -240,7 +240,7 @@ class MsgHeader {
 		[c.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 
 		let msg = this.dealCmd(c.cmd, c.arg);
-		if (this.err != NoError) {
+		if (this.err != emptyString) {
 			return;
 		}
 		return msg;
@@ -325,7 +325,7 @@ class MsgHeader {
 		let A = this.cli.generateA();
 		this.cli.clientComputeS();
 		let M1 = this.cli.computeM1(this.cli);
-		if (this.cli.err != NoError) {
+		if (this.cli.err != emptyString) {
 			return this.cli.err;
 		}
 		let A1 = commonFun.bytes2Str(A);
@@ -467,7 +467,7 @@ class MsgHeader {
 		    default: 
 		    	this.err = "Unknown message type" + type;
 		}
-		if (this.err != NoError) {
+		if (this.err != emptyString) {
 			throw new Error(this.err);
 		}
 		return msg;

@@ -2,7 +2,7 @@ const commonFun = require('./commonFun.js');
 const vbsEncode = require('./VBS/encode.js');
 const vbsDecode = require('./VBS/decode.js');
 const  msgHeader  = require('./message.js').MsgHeader;
-let NoError = "";
+let emptyString = "";
 let WebSocketClient;
 if (typeof WebSocket == "undefined" && !process.env.browser) {
 	WebSocketClient = require("ws");
@@ -97,10 +97,10 @@ function ClientSocket() {
     ClientSocket.prototype.sendData = function(msgBody) {
     	if (that.readyState  == that.connectStatus.open) {
 			let txid = _generateTxid();
-			if (that.requestNumber.length > 5) {
-				that.err = "Please send message to server later !";
-				return that.err;
-			}
+			// if (that.requestNumber.length > 5) {
+			// 	that.err = "Please send message to server later !";
+			// 	return that.err;
+			// }
 			let data = that.msgHead.packQuest(txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
 	    	that.ws.send(data);
 	    	if (txid != 0) {
@@ -138,7 +138,8 @@ function ClientSocket() {
 					case 'B':
 						that.lockReconnect = false;
 						that.ws.onclose();
-						break;
+						let closeMsg = "Disconnect with server side";
+						return closeMsg;
 					case 'A':
 						// TODO 
 						that.requestNumber = that.requestNumber.filter(v => v!= msg.txid);

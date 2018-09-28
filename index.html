@@ -41,7 +41,7 @@
 		};
    	 	let client;
    	 	let err = "";
-   	 	let NoError = "";
+   	 	let emptyString = "";
    	 	
 		function connectting() {
 			let ele = document.createElement('div');
@@ -96,13 +96,17 @@
 	        	return;
 			}
 			err = client.sendData(txt.value);
-			if (err != NoError && err != undefined) {
+			console.log(111, err != emptyString && err != undefined, err)
+			if (err != emptyString && err != undefined) {
 				ele.innerText = '【Error: 】' + err;
+				document.getElementById('info').appendChild(ele);
+	        	return;
 			}
 			client.ws.onmessage = (result) => {
 				let dataMsg = client.getData(result.data).then((data) => {
 					console.log("Rece data", data);
 					if (!data.hasOwnProperty("arg")) {
+						ele.innerText = '【Receive Data: 】' + data;
 						return;
 					}
 					let tempRec = ShowTheObject(data.arg);
