@@ -327,7 +327,7 @@ class MsgHeader {
 		console.log("S", this.cli._S);
 		let M1 = this.cli.computeM1(this.cli);
 		if (this.cli.err != emptyString) {
-			return this.cli.err;
+			return;
 		}
 		console.log("M1", M1);
 		let A1 = commonFun.bytes2Str(A);
