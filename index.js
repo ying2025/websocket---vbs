@@ -7737,6 +7737,7 @@ function ClientSocket() {
 					case 'C':          
 						that.readyState  = 1; //
 						let content = msg.data.content;
+						console.log("content: ", content);
 					 	if (typeof content != "undefined") {
 					 		that.ws.send(content);
 					 	}
