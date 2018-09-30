@@ -1598,7 +1598,7 @@ class MsgHeader {
 		}
 		this.cli.computeK(this.cli);
 		this.vec.key = commonFun.bytes2Str(this.cli._K);
-		console.log("key", this.vec.key);
+		console.log("key11", this.vec.key);
 		this._messageHeader.flags = 0x01; // encrypt
 		this._isEnc = true;  // Encrypt flag
 	}
