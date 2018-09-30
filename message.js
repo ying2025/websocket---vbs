@@ -320,14 +320,16 @@ class MsgHeader {
 		this.cli._setParameter(this.cli, g, N, N.length * 4); //N is string type rather than byte, so it multiply 4
 		this.cli.setSalt(s);  // 设置cli的salt
 		this.cli.setB(B); 
-		// let a = "60975527035CF2AD1989806F0407210BC81EDC04E2762A56AFD529DDDA2D4393";
-		// let A = this.cli._setA(a)   // cli设置a
-		let A = this.cli.generateA();
+		let a = "60975527035CF2AD1989806F0407210BC81EDC04E2762A56AFD529DDDA2D4393";
+		let A = this.cli._setA(a)   // cli设置a
+		// let A = this.cli.generateA();
 		this.cli.clientComputeS();
+		console.log("S", this.cli._S);
 		let M1 = this.cli.computeM1(this.cli);
 		if (this.cli.err != emptyString) {
 			return this.cli.err;
 		}
+		console.log("M1", M1);
 		let A1 = commonFun.bytes2Str(A);
 		let M11 = commonFun.bytes2Str(M1);
 		let arg = {"A":A1, "M1":M11};	
@@ -342,12 +344,15 @@ class MsgHeader {
 		let M2 = args.M2;
 		let M2_min = this.cli.computeM2(this.cli);
 		let M2_mine = new Uint8Array(M2_min);
+		console.log("M2", M2);
+		console.log("M2_min", M2_min);
 		if (M2.toString() != M2_mine.toString()) {
 			this.err = "srp6a M2 not equal";
 			return;
 		}
 		this.cli.computeK(this.cli);
 		this.vec.key = commonFun.bytes2Str(this.cli._K);
+		console.log("key", this.vec.key);
 		this._messageHeader.flags = 0x01; // encrypt
 		this._isEnc = true;  // Encrypt flag
 	}
