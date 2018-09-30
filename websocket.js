@@ -128,8 +128,7 @@ function ClientSocket() {
 					case 'C':          
 						that.readyState  = 1; //
 						let content = msg.data.content;
-						console.log("content: ", content);
-					 	if (typeof content != "undefined") {
+					 	if (typeof content != "undefined" && content != undefined) {
 					 		that.ws.send(content);
 					 	}
 						break;
@@ -150,7 +149,6 @@ function ClientSocket() {
 						break;
 				}
 			}
-		    // console.log("Remaining request : ", that.requestNumber.length);
 			return msg;
 		 }).catch(function (error) {
 		    return error;
