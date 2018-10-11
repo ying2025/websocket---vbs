@@ -1302,6 +1302,8 @@ class MsgHeader {
     	this.id = "alice";
     	this.pass = "password123";
     	this.cli = null;
+    	this.receiveList = []; // Similar a server  record the receive txid sequence
+    	this.receiveDataList = []; // Similar a server  record the receive txid and data sequence
 	}
 	/**
      *  @dev fillHeader
@@ -1506,12 +1508,10 @@ class MsgHeader {
 				this.forbidden(arg);
 				break; 
 			case 'AUTHENTICATE':
-				tempData = this.sendSrp6a1(arg);
-				msg = Object.assign({"content": tempData}, {"type":"C"});
+				msg = this.sendSrp6a1(arg);
 				break;
 			case 'SRP6a2':
-				tempData = this.sendSrp6a3(arg);
-				msg = Object.assign({"content": tempData}, {"type":"C"});
+				msg = this.sendSrp6a3(arg);
 				break;
 			case 'SRP6a4':
 				msg = this.verifySrp6aM2(arg);
@@ -1612,7 +1612,11 @@ class MsgHeader {
 	}
 	/**
      *  @dev unpackQuest
-     *  Fun: Unpack the receive message
+     *  Fun: Unpack the receive message. If it is encrypt, decrypt it first.
+     *         pack header and data, then get txid by decoding it with VBS
+     *         Judge whether data is repeated. If it is, throw the new receive, 
+     *		   and pack the error answer. Else decode q
+     *		   pack answer 
      *  @param {uint8Arr} receive data
      */
 	unpackQuest(uint8Arr) {
@@ -1636,13 +1640,31 @@ class MsgHeader {
 			uint8Arr = tempArr;
 		}
 		[q.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
+
+		this._messageHeader.type = 'A';
+		let a = Object.assign(this._answer, this._messageHeader);
+		a.txid = q.txid
+		let content = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
+		let repeateFlag = this.isAlreadReceive(content);
+		if (repeateFlag) {
+			this.err = "Receive duplication of data !";
+			a.status = 1;
+			this.packUnormalAnswerArg(a,"exname",1001,"tag","message","raiser",this.err);
+			return this.packAnswer(a);
+		}
+
 		[q.service, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		[q.method, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		[q.ctx, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		[q.args, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-
+		
 		if (8+len == pos) { // Decode Right
-			let msg = this.packAnswerBody(q);
+			this.receiveDataList[q.txid] =  content// Record receive data list
+			if (q.txid == 0) {
+				return;
+			}
+			this.receiveList[this.receiveList.length] = q.txid; 
+			let msg = this.packAnswerBody(a);
 			return this.packAnswer(msg);
 		} else {
 			this.err = "Decode message error, the length of encode byte dissatisfy VBS Requirement!";
@@ -1650,26 +1672,36 @@ class MsgHeader {
 		}
 	}
 	/**
+     *  @dev isAlreadReceive
+     *  Fun: judge whether alread receive the same data.
+     */
+	isAlreadReceive(content) {
+		let flag = false;
+		this.receiveDataList.filter((v, j) => {
+			if (content.toString() == v.toString()) {
+				flag = true;
+				return;
+			}
+		});
+		return flag;
+	}
+	/**
      *  @dev packAnswerBody
      *  Fun: pack answer message. If it is unnormal, pack the error
      */
-	packAnswerBody(q) {
-		this._messageHeader.type = 'A';
-		let a = Object.assign(this._answer, this._messageHeader);
-		console.log(a)
-		a.txid = q.txid
+	packAnswerBody(a) {
 		if (this.err != emptyString) {
 			a.status = 1;
-			this.packUnormalAnswerArg(a,"exname",1001,"tag","message","raiser","detail");
+			this.packUnormalAnswerArg(a,"exname",1001,"tag","message","raiser",this.err);
 		} else {
 			a.status = 0;
 			a.args["first"] = "this is server1 reply";
 			a.args["second"] = "this is server1 reply2";
 		}
-		return a
+		return a;
 	}
 	/**
-     *  @dev packAnswer
+     *  @dev pac kAnswer
      *  Fun: encode answer message with VBS. If this._isEnc is true, pack nonce+header+ct
      *       else pack header+u8a
      */
@@ -1704,6 +1736,7 @@ class MsgHeader {
 			msg.set(this.packet, 0);
 			msg.set(u8a, 8);
 		}
+		this.receiveList = this.receiveList.filter(v => v!= a.txid);
 		return msg.buffer;
 	}
 	/**
@@ -1763,22 +1796,23 @@ class MsgHeader {
      *  Fun: According to the header, deal the message.
      *  @param {uint8Arr} receive data
      */
-	decodeHeader(uint8Arr) {
-		//  'A', 'H', 'B', 'C
+	decodeHeader(ws, uint8Arr) {
+		//  'A', 'H', 'B', 'C,'Q'
+		this.err = emptyString; // clear the error which is alread throw
 		if (uint8Arr == undefined || uint8Arr.length < 8) {
 			this.err = "The length of message is less than 8 bytes !";
 			return this.err;
 		}
 		let msg;
 		if (uint8Arr.length > 16 && uint8Arr[9] != 0x58 && uint8Arr[11] == 0x01) {
-			let data = new Uint8Array(uint8Arr.buffer, 8, uint8Arr.length - 8);
+			let data = new Uint8Array(uint8Arr.buffer, 8, uint8Arr.length - 8); // data except nonce
 			let type = String.fromCharCode(uint8Arr[10]);
 			switch (type) {
 				case 'Q':
-		    		let answerData = this.unpackQuest(data);
-			    	if (typeof answerData != "undefined") {
-			    		msg = Object.assign({"data":answerData}, {type:"Q"});
-			    	} 
+			    	msg = this.unpackQuest(data);
+			    	if (typeof msg != "undefined" && msg != undefined) {
+			    		ws.send(msg);
+			    	}  
 		    		break;
 			    case 'A':
 			    	msg = this.unpackAnswer(data);
@@ -1786,10 +1820,13 @@ class MsgHeader {
 			    default: 
 			    	this.err = "Unknown message type" + type;
 			}
+			if (this.err != emptyString) {
+				throw new Error(this.err);
+			}
 			return msg;
-
 		}
-		let type = String.fromCharCode(uint8Arr[2]);		
+
+		let type = String.fromCharCode(uint8Arr[2]);
 		if (uint8Arr[0] != 0x58 || uint8Arr[1] != 0x21) { // magic != 'X' ||  version != '!'
 			this.err = "Unknown message magic and version" + uint8Arr[0] + "," +  uint8Arr[1];
 			return this.err;
@@ -1808,15 +1845,18 @@ class MsgHeader {
 		    	msg = Object.assign(this._messageHeader, {type:'B'});
 		    	break;
 		    case 'C':
-		    	let data = this.unpackCheck(uint8Arr); // readyState: 1
-		    	if (typeof data != "undefined") {
-		    		msg = Object.assign({"data":data}, {type:"C"});
+		    	msg = this.unpackCheck(uint8Arr); // readyState: 1
+		    	if (typeof msg != "undefined" && msg != undefined) {
+		    		ws.send(msg);
 		    	} else {
 		    		msg = "Pass SRP6a Verify!";
 		    	}
 		    	break;
 		    case 'Q':
 		    	msg = this.unpackQuest(uint8Arr);
+		    	if (typeof msg != "undefined" && msg != undefined) {
+			    	ws.send(msg);
+			    }  
 		    	break;
 		    case 'A':
 		    	msg = this.unpackAnswer(uint8Arr);
@@ -7728,8 +7768,8 @@ if (typeof WebSocket == "undefined" && !process.env.browser) {
 function ClientSocket() {
 	let resendTimer = null;
     this.err = "";
-    this.requestNumber = []; // record the request txid sequence
-    this.requestList = []; // record the request txid and data sequence
+    this.sendList = []; // record the request txid sequence that client send to server
+    this.sendDataList = []; // record the request txid and data sequence that client send to server
     this.url = '';
 
     this.connectStatus = {
@@ -7808,22 +7848,22 @@ function ClientSocket() {
      *  @dev sendData
      *  Fun: Send data to server. The data to server use xic as header and the vbs code as body.
      *  @param {msgBody} message body.
-     *  Additional describe: that.requestNumber use to record sequence that send to server
-     *		that.requestList use to record sequence and the relevant data
+     *  Additional describe: that.sendList use to record sequence that send to server
+     *		that.sendDataList use to record sequence and the relevant data
      */
     ClientSocket.prototype.sendData = function(msgBody) {
     	if (that.readyState  == that.connectStatus.open) {
 			let txid = _generateTxid();
-			// if (that.requestNumber.length > 5) {
+			// if (that.sendList.length > 5) {
 			// 	that.err = "Please send message to server later !";
 			// 	return that.err;
 			// }
 			let data = that.msgHead.packQuest(txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
 	    	that.ws.send(data);
 	    	if (txid != 0) {
-	    		that.requestNumber[i++] = txid;
+	    		that.sendList[i++] = txid;
 	    		let obj = {[txid]: data};
-	    		that.requestList.push(obj);
+	    		that.sendDataList.push(obj);
 	    	}
 	    } else {
 	    	that.err = "Please connect to server";
@@ -7839,35 +7879,25 @@ function ClientSocket() {
     ClientSocket.prototype.getData = function(data) {
 
 		let decodeMsg = _readerBlob(data).then((result) => {
-			let msg = that.msgHead.decodeHeader(result);
+			let msg = that.msgHead.decodeHeader(that.ws, result);
 			if (typeof msg.type != "undefined") {
 				switch (msg.type) {
-					case 'C':          
-						that.readyState  = 1; //
-						let content = msg.data.content;
-					 	if (typeof content != "undefined" && content != undefined) {
-					 		that.ws.send(content);
-					 	}
-						break;
 					case 'H':
 						that.readyState  = 2; // Can send message
 						break;
 					case 'B':
 						that.lockReconnect = false;
-						that.ws.onclose();
+						 _graceClose();
 						let closeMsg = "Disconnect with server side";
 						return closeMsg;
 					case 'Q': 
 						// ToDo
-						let tempData = msg.data;
-					 	if (typeof tempData != "undefined" && tempData != undefined) {
-					 		that.ws.send(tempData);
-					 	}
+					 	// that.ws.send(that.msgHead.packMsg('H'));
 						break;
 					case 'A':
 						// TODO 
-						that.requestNumber = that.requestNumber.filter(v => v!= msg.txid);
-						if (that.requestNumber.length == 0) {
+						that.sendList = that.sendList.filter(v => v!= msg.txid);
+						if (that.sendList.length == 0) {
 					    	clearInterval(resendTimer);
 						}
 						break;
@@ -7895,12 +7925,7 @@ function ClientSocket() {
             if( that.ws.terminate ) {
                 that.ws.terminate();
             }
-			if (that.requestNumber.length == 0) {
-				that.lockReconnect = false;
-				that.ws.send(that.msgHead.packMsg('B'));
-			} else {
-				_graceClose();
-			}
+            _graceClose();
 		});
 	}
 	/**
@@ -7910,11 +7935,17 @@ function ClientSocket() {
      *  or send the undeal message to server
      */
 	function _graceClose() {
-		let len = that.requestNumber.length;
+		let len = that.sendList.length;
+		if (len == 0) {
+			that.lockReconnect = false;
+			clearInterval(resendTimer);
+			that.ws.send(that.msgHead.packMsg('B'));
+			return;
+		}
 		let waitSendMsg = [];
 		// According the txid sequence to find the data
-		that.requestList.filter((v, j) => {
-			if (that.requestNumber.indexOf(j) != -1) {
+		that.sendDataList.filter((v, j) => {
+			if (that.sendList.indexOf(j) != -1) {
 				waitSendMsg.push(Object.values(v));
 			}
 		});
@@ -7925,7 +7956,7 @@ function ClientSocket() {
 				clearInterval(resendTimer);
 		    	return;
 			}	
-			if (that.requestNumber.length > 0 && that.ws.readyState == 3) {
+			if (that.sendList.length > 0 && that.ws.readyState == 3) {
 				m++;
 				if (m > 3) {  // At most connect 3 times
 					clearInterval(resendTimer);

@@ -104,11 +104,11 @@
 			client.ws.onmessage = (result) => {
 				let dataMsg = client.getData(result.data).then((data) => {
 					console.log("Rece data", data);
-					if (!data.hasOwnProperty("arg")) {
+					if (!data.hasOwnProperty("args")) {
 						ele.innerText = '【Receive Data: 】' + data;
 						return;
 					}
-					let tempRec = ShowTheObject(data.arg);
+					let tempRec = ShowTheObject(data.args);
 			    	ele.innerText = '【Receive Data: 】' + tempRec;
 			    }).catch((error) => {
 			    	ele.innerText = '【Receive exception data: 】' + error;

@@ -13,8 +13,8 @@ if (typeof WebSocket == "undefined" && !process.env.browser) {
 function ClientSocket() {
 	let resendTimer = null;
     this.err = "";
-    this.requestNumber = []; // record the request txid sequence
-    this.requestList = []; // record the request txid and data sequence
+    this.sendList = []; // record the request txid sequence that client send to server
+    this.sendDataList = []; // record the request txid and data sequence that client send to server
     this.url = '';
 
     this.connectStatus = {
@@ -93,22 +93,22 @@ function ClientSocket() {
      *  @dev sendData
      *  Fun: Send data to server. The data to server use xic as header and the vbs code as body.
      *  @param {msgBody} message body.
-     *  Additional describe: that.requestNumber use to record sequence that send to server
-     *		that.requestList use to record sequence and the relevant data
+     *  Additional describe: that.sendList use to record sequence that send to server
+     *		that.sendDataList use to record sequence and the relevant data
      */
     ClientSocket.prototype.sendData = function(msgBody) {
     	if (that.readyState  == that.connectStatus.open) {
 			let txid = _generateTxid();
-			// if (that.requestNumber.length > 5) {
+			// if (that.sendList.length > 5) {
 			// 	that.err = "Please send message to server later !";
 			// 	return that.err;
 			// }
 			let data = that.msgHead.packQuest(txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
 	    	that.ws.send(data);
 	    	if (txid != 0) {
-	    		that.requestNumber[i++] = txid;
+	    		that.sendList[i++] = txid;
 	    		let obj = {[txid]: data};
-	    		that.requestList.push(obj);
+	    		that.sendDataList.push(obj);
 	    	}
 	    } else {
 	    	that.err = "Please connect to server";
@@ -124,35 +124,25 @@ function ClientSocket() {
     ClientSocket.prototype.getData = function(data) {
 
 		let decodeMsg = _readerBlob(data).then((result) => {
-			let msg = that.msgHead.decodeHeader(result);
+			let msg = that.msgHead.decodeHeader(that.ws, result);
 			if (typeof msg.type != "undefined") {
 				switch (msg.type) {
-					case 'C':          
-						that.readyState  = 1; //
-						let content = msg.data.content;
-					 	if (typeof content != "undefined" && content != undefined) {
-					 		that.ws.send(content);
-					 	}
-						break;
 					case 'H':
 						that.readyState  = 2; // Can send message
 						break;
 					case 'B':
 						that.lockReconnect = false;
-						that.ws.onclose();
+						 _graceClose();
 						let closeMsg = "Disconnect with server side";
 						return closeMsg;
 					case 'Q': 
 						// ToDo
-						let tempData = msg.data;
-					 	if (typeof tempData != "undefined" && tempData != undefined) {
-					 		that.ws.send(tempData);
-					 	}
+					 	// that.ws.send(that.msgHead.packMsg('H'));
 						break;
 					case 'A':
 						// TODO 
-						that.requestNumber = that.requestNumber.filter(v => v!= msg.txid);
-						if (that.requestNumber.length == 0) {
+						that.sendList = that.sendList.filter(v => v!= msg.txid);
+						if (that.sendList.length == 0) {
 					    	clearInterval(resendTimer);
 						}
 						break;
@@ -180,12 +170,7 @@ function ClientSocket() {
             if( that.ws.terminate ) {
                 that.ws.terminate();
             }
-			if (that.requestNumber.length == 0) {
-				that.lockReconnect = false;
-				that.ws.send(that.msgHead.packMsg('B'));
-			} else {
-				_graceClose();
-			}
+            _graceClose();
 		});
 	}
 	/**
@@ -195,11 +180,17 @@ function ClientSocket() {
      *  or send the undeal message to server
      */
 	function _graceClose() {
-		let len = that.requestNumber.length;
+		let len = that.sendList.length;
+		if (len == 0) {
+			that.lockReconnect = false;
+			clearInterval(resendTimer);
+			that.ws.send(that.msgHead.packMsg('B'));
+			return;
+		}
 		let waitSendMsg = [];
 		// According the txid sequence to find the data
-		that.requestList.filter((v, j) => {
-			if (that.requestNumber.indexOf(j) != -1) {
+		that.sendDataList.filter((v, j) => {
+			if (that.sendList.indexOf(j) != -1) {
 				waitSendMsg.push(Object.values(v));
 			}
 		});
@@ -210,7 +201,7 @@ function ClientSocket() {
 				clearInterval(resendTimer);
 		    	return;
 			}	
-			if (that.requestNumber.length > 0 && that.ws.readyState == 3) {
+			if (that.sendList.length > 0 && that.ws.readyState == 3) {
 				m++;
 				if (m > 3) {  // At most connect 3 times
 					clearInterval(resendTimer);
