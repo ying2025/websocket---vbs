@@ -57,6 +57,8 @@ function ClientSocket() {
 		    	console.log('ws onmessage from server: ', data);
 		    	if (data.type !== undefined && data.type == 'H') {
 			    	callback(that.readyState);
+			    	// Temp add
+    				that.ws.send(that.msgHead.packMsg('H'));
 			    }
 		    }).catch((error) => {
 		    	callback(error);
@@ -140,6 +142,13 @@ function ClientSocket() {
 						that.ws.onclose();
 						let closeMsg = "Disconnect with server side";
 						return closeMsg;
+					case 'Q': 
+						// ToDo
+						let tempData = msg.data;
+					 	if (typeof tempData != "undefined" && tempData != undefined) {
+					 		that.ws.send(tempData);
+					 	}
+						break;
 					case 'A':
 						// TODO 
 						that.requestNumber = that.requestNumber.filter(v => v!= msg.txid);

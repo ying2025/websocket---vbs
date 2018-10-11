@@ -27,13 +27,16 @@ class MsgHeader {
 		};
 		this._quest = {
 			txid: 0,
-			buf: []
+			service: "",
+			method: "",
+			ctx: "",
+			args: ""
 		};
 		this._answer = {
 			txid: 0,
 			status: 0,
 			argsOff: 0,
-			arg: {}
+			args: {}
 		};
 		this._check = {
 			cmd: "",
@@ -102,6 +105,7 @@ class MsgHeader {
      */
 	packMsg(type) {
 		this.fillHeader(type, 0);	
+		this.packet[3] = 0x00;
 		let u8a = new Uint8Array(this.packet);
 		return u8a.buffer;
 	}
@@ -361,6 +365,114 @@ class MsgHeader {
 		return;
 	}
 	/**
+     *  @dev unpackQuest
+     *  Fun: Unpack the receive message
+     *  @param {uint8Arr} receive data
+     */
+	unpackQuest(uint8Arr) {
+		this._messageHeader.type = 'Q';
+		let q = Object.assign(this._quest, this._messageHeader);
+
+		let len = ((uint8Arr[4] & 0xFF) << 24) + ((uint8Arr[5] & 0xFF) << 16) + ((uint8Arr[6] & 0xFF) << 8) + (uint8Arr[7] & 0xFF);
+		let pos = 0;
+		if (this._isEnc) {
+			let pt = this.decryptData(new Uint8Array(uint8Arr.buffer, 16, uint8Arr.length - 8));
+			if (pt == false) {
+				this.err = "Decrypt data Error !";
+				return this.err;
+			}
+			let data = this.convertWordArrayToUint8Array(pt);
+			let header = new Uint8Array(uint8Arr.buffer, 0, 8);
+			
+			let tempArr = new Uint8Array(8 + data.length);
+			tempArr.set(header, 0);
+			tempArr.set(data, 8);
+			uint8Arr = tempArr;
+		}
+		[q.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
+		[q.service, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
+		[q.method, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
+		[q.ctx, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
+		[q.args, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
+
+		if (8+len == pos) { // Decode Right
+			let msg = this.packAnswerBody(q);
+			return this.packAnswer(msg);
+		} else {
+			this.err = "Decode message error, the length of encode byte dissatisfy VBS Requirement!";
+			return this.err;
+		}
+	}
+	/**
+     *  @dev packAnswerBody
+     *  Fun: pack answer message. If it is unnormal, pack the error
+     */
+	packAnswerBody(q) {
+		this._messageHeader.type = 'A';
+		let a = Object.assign(this._answer, this._messageHeader);
+		console.log(a)
+		a.txid = q.txid
+		if (this.err != emptyString) {
+			a.status = 1;
+			this.packUnormalAnswerArg(a,"exname",1001,"tag","message","raiser","detail");
+		} else {
+			a.status = 0;
+			a.args["first"] = "this is server1 reply";
+			a.args["second"] = "this is server1 reply2";
+		}
+		return a
+	}
+	/**
+     *  @dev packAnswer
+     *  Fun: encode answer message with VBS. If this._isEnc is true, pack nonce+header+ct
+     *       else pack header+u8a
+     */
+	packAnswer(a) {
+		let newTxid =  vbsEncode.encodeVBS(a.txid);
+		let newStatus = vbsEncode.encodeVBS(a.status);
+		let newArg = vbsEncode.encodeVBS(a.args);
+
+		if (this._isEnc) {
+			this._messageHeader.flags = 0x01;
+		}
+		let len = newTxid.byteLength + newStatus.byteLength + newArg.byteLength;
+		this.fillHeader('A', len);
+
+		let u8a = new Uint8Array(len);
+		u8a.set(new Uint8Array(newTxid), 0); 
+    	u8a.set(new Uint8Array(newStatus), newTxid.byteLength);
+		u8a.set(new Uint8Array(newArg), newTxid.byteLength+newStatus.byteLength);
+
+		let msg;
+		if (this._isEnc) {
+			let nonNum = vbsEncode.encodeVBS(this.send_nonce);
+			this.send_nonce += this.noce_increase_step;
+			let et = this.cryptoData(u8a);
+			let ct = this.convertWordArrayToUint8Array(et);
+			msg = new Uint8Array(ct.byteLength + 16);	
+			msg.set(new Uint8Array(nonNum), 0);
+			msg.set(this.packet, 8);
+			msg.set(ct, 16);	
+		} else {
+			msg = new Uint8Array(u8a.byteLength + 8);
+			msg.set(this.packet, 0);
+			msg.set(u8a, 8);
+		}
+		return msg.buffer;
+	}
+	/**
+     *  @dev packUnormalAnswerArg
+     */
+	packUnormalAnswerArg(a,exname,code,tag,message,raiser,detail) {
+		a.args.exname = exname;
+		a.args.code   =  code;
+		a.args.tag   =  tag;
+		a.args.message   =  message;
+		a.args.raiser   =  raiser;
+		a.args.detail   =  detail;
+		return;
+	}
+	/**
      *  @dev unpackAnswer
      *  Fun: Unpack the receive message, if status is 0, the message is normal, or check the reason.
      *  @param {uint8Arr} receive data
@@ -390,7 +502,7 @@ class MsgHeader {
 		
 		[a.status, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 
-		[a.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
+		[a.args, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 
 		if (8+len == pos) { // Decode Right
 			return a;
@@ -399,22 +511,6 @@ class MsgHeader {
 			return this.err;
 		}
 		
-	}
-	/**
-     *  @dev unpackAnswerArg
-     */
-	unpackAnswerArg(a, uint8Arr, pos) {
-		if (a.status == 0) { // normally
-			[a.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // arg
-		} else {
-			[a.arg.exname, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // exname
-			[a.arg.code, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // code
-			[a.arg.tag, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // tag
-			[a.arg.message, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // message
-			[a.arg.raiser, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // raiser
-			[a.arg.detail, pos] = vbsDecode.decodeVBS(uint8Arr, pos); // detail
-		}
-		return [a.arg, pos];
 	}
 	/**
      *  @dev decodeHeader
@@ -427,14 +523,27 @@ class MsgHeader {
 			this.err = "The length of message is less than 8 bytes !";
 			return this.err;
 		}
+		let msg;
 		if (uint8Arr.length > 16 && uint8Arr[9] != 0x58 && uint8Arr[11] == 0x01) {
 			let data = new Uint8Array(uint8Arr.buffer, 8, uint8Arr.length - 8);
-			return this.unpackAnswer(data);
+			let type = String.fromCharCode(uint8Arr[10]);
+			switch (type) {
+				case 'Q':
+		    		let answerData = this.unpackQuest(data);
+			    	if (typeof answerData != "undefined") {
+			    		msg = Object.assign({"data":answerData}, {type:"Q"});
+			    	} 
+		    		break;
+			    case 'A':
+			    	msg = this.unpackAnswer(data);
+			    	break;
+			    default: 
+			    	this.err = "Unknown message type" + type;
+			}
+			return msg;
 
 		}
-		let type = String.fromCharCode(uint8Arr[2]);
-		let msg;
-
+		let type = String.fromCharCode(uint8Arr[2]);		
 		if (uint8Arr[0] != 0x58 || uint8Arr[1] != 0x21) { // magic != 'X' ||  version != '!'
 			this.err = "Unknown message magic and version" + uint8Arr[0] + "," +  uint8Arr[1];
 			return this.err;
@@ -460,13 +569,15 @@ class MsgHeader {
 		    		msg = "Pass SRP6a Verify!";
 		    	}
 		    	break;
+		    case 'Q':
+		    	msg = this.unpackQuest(uint8Arr);
+		    	break;
 		    case 'A':
 		    	msg = this.unpackAnswer(uint8Arr);
 		    	break;
 		    default: 
 		    	this.err = "Unknown message type" + type;
 		}
-		console.log(this.err);
 		if (this.err != emptyString) {
 			throw new Error(this.err);
 		}
