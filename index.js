@@ -7968,26 +7968,11 @@ function ClientSocket() {
 						that.readyState = 2;
 						clearInterval(resendTimer);
 						return true;
-						// that.ws.send(v[j]);
-						// console.log(that.sendList, j);
-						// m++;
-						// if (m > 3) {  // At most connect 3 times
-						// 	clearInterval(resendTimer);
-						// 	return true;
-						// }
 					} else {
 						that.connect(that.url ,(readyState) => { // try to connect ws_server
 							if (readyState == 2) {
 								clearInterval(resendTimer);
 								return true;
-								// if (that.sendList.length != 0) {
-								// 	that.ws.send(v[j]);
-								// }
-								// m++;
-								// if (m > 3) {  // At most connect 3 times
-								// 	clearInterval(resendTimer);
-								// 	return true;
-								// }
 							}
 						});
 					}
