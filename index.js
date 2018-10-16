@@ -1875,6 +1875,8 @@ class MsgHeader {
 module.exports = {
 	MsgHeader
 }
+
+
 },{"./VBS/decode.js":3,"./VBS/encode.js":4,"./commonFun.js":8,"./srp6a/SRP6a.js":27,"fs":1}],10:[function(require,module,exports){
 var bigInt = (function (undefined) {
     "use strict";
@@ -7811,7 +7813,7 @@ function ClientSocket() {
 		    	if (data.type !== undefined && data.type == 'H') {
 			    	callback(that.readyState);
 			    	// Temp add
-    				that.ws.send(that.msgHead.packMsg('H'));
+    				// that.ws.send(that.msgHead.packMsg('H'));
 			    }
 		    }).catch((error) => {
 		    	callback(error);
@@ -7826,7 +7828,8 @@ function ClientSocket() {
 
 		that.ws.onclose = function(evt) {	
 			that.readyState = that.connectStatus.closed;
-			console.log("connection closed!", evt);
+			callback(that.readyState);
+			console.log(that.readyState, "connection closed!", evt);
 			// Abnormal closure, auto reconnect to server if it is 
 			if (that.lockReconnect && that.reconnectionAttempted == 0) {
 				if (that.ws.readyState == that.ws.CLOSED) { 
@@ -7839,7 +7842,6 @@ function ClientSocket() {
 					}, Math.floor(Math.random() * 4000));
 				}
 			} 
-			callback(that.readyState);
 		}; 
     }
 	/**
@@ -7885,11 +7887,12 @@ function ClientSocket() {
 						break;
 					case 'B':
 						that.lockReconnect = false;
+						that.readyState  = 3;
 						let allowClose = _graceClose();
 						let closeMsg;
 			            if (allowClose) {
 			            	that.ws.close();
-			            	closeMsg = "Disconnect with server side";
+			            	closeMsg = "The connection is disconnecting with the server.";
 			            } else {
 			            	console.log("Waiting !!");
 			            	closeMsg = "Waiting for disconnect";
@@ -7897,7 +7900,7 @@ function ClientSocket() {
 						return closeMsg;
 					case 'Q': 
 						// ToDo
-					 	that.ws.send(that.msgHead.packMsg('H'));
+					 	// that.ws.send(that.msgHead.packMsg('H'));
 						break;
 					case 'A':
 						// TODO 
@@ -7953,43 +7956,50 @@ function ClientSocket() {
 		}
 		// According the txid sequence to find the data
 		let m = 0; // connect ws_server' times
-		that.sendDataList.filter((v, j) => {
-			// Todo
-			if (that.sendList.indexOf(j) != -1) {
-				
-				let resendTimer = setInterval(() => {
-					if (that.sendList.length == 0) {
+		let resendTimer = setInterval(() => {
+			if (that.sendList.length == 0) {
+				clearInterval(resendTimer);
+				return true;
+			} 
+			that.sendDataList.filter((v, j) => {
+				// Todo
+				if (that.sendList.indexOf(j) != -1) {
+					if (that.ws.readyState == 1) {
+						that.readyState = 2;
 						clearInterval(resendTimer);
 						return true;
-					} else if (that.ws.readyState == 1) {
-						that.ws.send(v[j]);
-						sleep(3000);
-						m++;
-						if (m > 3) {  // At most connect 3 times
-							clearInterval(resendTimer);
-							return true;
-						}
-					} else  {   // alread disconnect
-						m++;
-						if (m > 3) {  // At most connect 3 times
-							clearInterval(resendTimer);
-							return true;
-						}
+						// that.ws.send(v[j]);
+						// console.log(that.sendList, j);
+						// m++;
+						// if (m > 3) {  // At most connect 3 times
+						// 	clearInterval(resendTimer);
+						// 	return true;
+						// }
+					} else {
 						that.connect(that.url ,(readyState) => { // try to connect ws_server
 							if (readyState == 2) {
-								while(k < that.sendList.length) {
-									that.ws.send(v[j]);
-								}
+								clearInterval(resendTimer);
+								return true;
+								// if (that.sendList.length != 0) {
+								// 	that.ws.send(v[j]);
+								// }
+								// m++;
+								// if (m > 3) {  // At most connect 3 times
+								// 	clearInterval(resendTimer);
+								// 	return true;
+								// }
 							}
 						});
-					} 	
-				}, 3000);
-			}
-		});
+					}
+				}
+			});	
+		}, 1000);
+		if (that.sendList.length == 0) {
+			return true;
+		} else {
+			return false;
+		}
 		
-	}
-	function sleep(time) {
-	  return new Promise((resolve) => setTimeout(resolve, time));
 	}
  //     function _graceClose() {
 	// 	let len = that.sendList.length;
@@ -7999,53 +8009,45 @@ function ClientSocket() {
 	// 	}
 	// 	if (len == 0) {
 	// 		that.lockReconnect = false;
-	// 		// clearInterval(resendTimer);
 	// 		return true;
 	// 	}
-	// 	let waitSendMsg = [];
 	// 	// According the txid sequence to find the data
+	// 	let m = 0; // connect ws_server' times
 	// 	that.sendDataList.filter((v, j) => {
 	// 		// Todo
 	// 		if (that.sendList.indexOf(j) != -1) {
-	// 			if (that.ws.readyState == 1) {
-	// 				that.ws.send(v[j]);
-	// 			} else {
-	// 				waitSendMsg.push(Object.values(v[j]));
-	// 			}
+				
+	// 			let resendTimer = setInterval(() => {
+	// 				if (that.sendList.length == 0) {
+	// 					clearInterval(resendTimer);
+	// 					return true;
+	// 				} else if (that.ws.readyState == 1) {
+	// 					that.readyState = 2;
+	// 					that.ws.send(v[j]);
+	// 					m++;
+	// 					if (m > 3) {  // At most connect 3 times
+	// 						clearInterval(resendTimer);
+	// 						return true;
+	// 					}
+	// 					that.connect(that.url ,(readyState) => { // try to connect ws_server
+	// 						if (readyState == 2) {
+	// 							if (that.sendList.length != 0) {
+	// 								that.ws.send(v[j]);
+	// 							}
+	// 							clearInterval(resendTimer);
+	// 							return true;
+	// 						}
+	// 					});
+	// 				} 	
+	// 			}, 1000);
 	// 		}
 	// 	});
-	// 	let k = 0;
-	// 	let m = 0; // connect ws_server' times
-
-	// 	let resendTimer = setInterval(() => {
-	// 		len = that.sendList.length;
-	// 		if (len == 0) {
-	// 			clearInterval(resendTimer);
-	// 	    	return true;
-	// 		} else if (len > 0 && that.ws.readyState >= 2) {   // alread disconnect
-	// 			m++;
-	// 			if (m > 3) {  // At most connect 3 times
-	// 				clearInterval(resendTimer);
-	// 				return true;
-	// 			}
-	// 			that.connect(that.url ,(readyState) => { // try to connect ws_server
-	// 				if (readyState == 2) {
-	// 					while(k < waitSendMsg.length) {
-	// 						that.ws.send(waitSendMsg[k++]);
-	// 					}
-	// 				}
-	// 			});
-	// 		} else if (waitSendMsg.length != 0) {  // still in connection
-	// 			that.ws.send(waitSendMsg[k++]);
-	// 		} else {
-	// 			console.log("waiting");
-	// 			m++;
-	// 			if (m > 3) {  // At most connect 3 times
-	// 				clearInterval(resendTimer);
-	// 				return true;
-	// 			}
-	// 		}	
-	// 	}, 1000);
+	// 	if (that.sendList.length == 0) {
+	// 		return true;
+	// 	} else {
+	// 		return false;
+	// 	}
+		
 	// }
 	/**
      *  @dev _readerBlob

@@ -629,3 +629,4 @@ class MsgHeader {
 module.exports = {
 	MsgHeader
 }
+
