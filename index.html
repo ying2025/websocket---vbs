@@ -42,7 +42,7 @@
    	 	let client;
    	 	let err = "";
    	 	let emptyString = "";
-   	 	
+   	 	let reconnectTime = 0;
 		function connectting() {
 			let ele = document.createElement('div');
 			if (client != undefined && client.readyState == 2) {
@@ -72,11 +72,17 @@
 				document.getElementById('info').appendChild(ele);
 			});
 			let conServerTime = setTimeout(() => {
-				if (client.ws.readyState == 0) {
-					ele.innerText = '【Server is disconnect !】';
+				if (client.reConnectionFlag) {
+					ele.innerText = '【Server is reconnect !】';
 					document.getElementById('info').appendChild(ele);
 					clearTimeout(conServerTime);
 					return;
+				} else if(client.ws.readyState > 2) {
+					ele.innerText = '【Server is disconnect !】';
+					document.getElementById('info').appendChild(ele);
+					if (reconnectTime++ >= 3) {
+						clearTimeout(conServerTime);
+					}
 				}
 			}, 2000);
 		}
@@ -109,7 +115,7 @@
 						return;
 					}
 					let tempRec = ShowTheObject(data.args);
-			    	ele.innerText = '【Receive Data: 】' + tempRec;
+			    	ele.innerText += '【Receive Data: 】' + tempRec;
 			    }).catch((error) => {
 			    	ele.innerText = '【Receive exception data: 】' + error;
 			    });

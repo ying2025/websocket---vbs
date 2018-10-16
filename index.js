@@ -7785,6 +7785,7 @@ function ClientSocket() {
 
     this.lockReconnect = false; 
     this.reconnectionAttempted = 0;
+    this.reConnectionFlag = false;  // 
 
     let that = this; // ClientSocket
     that.msgHead = new msgHeader();
@@ -7971,7 +7972,9 @@ function ClientSocket() {
 					} else {
 						that.connect(that.url ,(readyState) => { // try to connect ws_server
 							if (readyState == 2) {
+								that.reConnectionFlag = true;
 								clearInterval(resendTimer);
+								that.sendList.length = 0;
 								return true;
 							}
 						});
@@ -7986,54 +7989,6 @@ function ClientSocket() {
 		}
 		
 	}
- //     function _graceClose() {
-	// 	let len = that.sendList.length;
-	// 	let recLen = that.msgHead.receiveList.length;
-	// 	while(recLen != 0) {
-	// 		console.log("Waiting to receive txid list", that.msgHead.receiveList);
-	// 	}
-	// 	if (len == 0) {
-	// 		that.lockReconnect = false;
-	// 		return true;
-	// 	}
-	// 	// According the txid sequence to find the data
-	// 	let m = 0; // connect ws_server' times
-	// 	that.sendDataList.filter((v, j) => {
-	// 		// Todo
-	// 		if (that.sendList.indexOf(j) != -1) {
-				
-	// 			let resendTimer = setInterval(() => {
-	// 				if (that.sendList.length == 0) {
-	// 					clearInterval(resendTimer);
-	// 					return true;
-	// 				} else if (that.ws.readyState == 1) {
-	// 					that.readyState = 2;
-	// 					that.ws.send(v[j]);
-	// 					m++;
-	// 					if (m > 3) {  // At most connect 3 times
-	// 						clearInterval(resendTimer);
-	// 						return true;
-	// 					}
-	// 					that.connect(that.url ,(readyState) => { // try to connect ws_server
-	// 						if (readyState == 2) {
-	// 							if (that.sendList.length != 0) {
-	// 								that.ws.send(v[j]);
-	// 							}
-	// 							clearInterval(resendTimer);
-	// 							return true;
-	// 						}
-	// 					});
-	// 				} 	
-	// 			}, 1000);
-	// 		}
-	// 	});
-	// 	if (that.sendList.length == 0) {
-	// 		return true;
-	// 	} else {
-	// 		return false;
-	// 	}
-		
-	// }
 	/**
      *  @dev _readerBlob
      *  Fun: Read blob as arrayBuffer

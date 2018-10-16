@@ -28,6 +28,7 @@ function ClientSocket() {
 
     this.lockReconnect = false; 
     this.reconnectionAttempted = 0;
+    this.reConnectionFlag = false;  // 
 
     let that = this; // ClientSocket
     that.msgHead = new msgHeader();
@@ -214,7 +215,9 @@ function ClientSocket() {
 					} else {
 						that.connect(that.url ,(readyState) => { // try to connect ws_server
 							if (readyState == 2) {
+								that.reConnectionFlag = true;
 								clearInterval(resendTimer);
+								that.sendList.length = 0;
 								return true;
 							}
 						});
