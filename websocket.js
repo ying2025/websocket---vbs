@@ -57,8 +57,8 @@ function ClientSocket() {
 		    	console.log('ws onmessage from server: ', data);
 		    	if (data.type !== undefined && data.type == 'H') {
 			    	callback(that.readyState);
-			    	// Temp add
-    				that.ws.send(that.msgHead.packMsg('H'));
+			    	// Temp test add 
+    				// that.ws.send(that.msgHead.packMsg('H'));
 			    }
 		    }).catch((error) => {
 		    	callback(error);
@@ -144,7 +144,7 @@ function ClientSocket() {
 			            }
 						return closeMsg;
 					case 'Q': 
-						// ToDo
+						// ToDo Temp test add 
 					 	// that.ws.send(that.msgHead.packMsg('H'));
 						break;
 					case 'A':
@@ -211,13 +211,14 @@ function ClientSocket() {
 				if (that.sendList.indexOf(j) != -1) {
 					if (that.ws.readyState == 1) {
 						that.readyState = 2;
-						if (that.sendList.length == 0) {
+						if (that.sendList.length == 0 || m > 3) {
 							clearInterval(resendTimer);
 							return true;
 						}
 					} else {
 						that.connect(that.url ,(readyState) => { // try to connect ws_server
 							if (readyState == 2) {
+								that.lockReconnect = false;
 								that.reConnectionFlag = true;
 								clearInterval(resendTimer);
 								that.sendList.length = 0;
@@ -226,6 +227,7 @@ function ClientSocket() {
 						});
 					}
 				}
+				m++;
 			});	
 		}, 1000);
 		if (that.sendList.length == 0) {

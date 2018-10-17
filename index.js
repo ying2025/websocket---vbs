@@ -1647,7 +1647,6 @@ class MsgHeader {
 		let content = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
 		let repeateFlag = this.isAlreadReceive(content);
 		if (repeateFlag) {
-			this.err = "Receive duplication of data !";
 			a.status = 1;
 			this.packUnormalAnswerArg(a,"exname",1001,"tag","message","raiser",this.err);
 			return this.packAnswer(a);
@@ -1678,6 +1677,8 @@ class MsgHeader {
 	isAlreadReceive(content) {
 		let flag = false;
 		this.receiveDataList.filter((v, j) => {
+			// console.log(content.toString() == v.toString(), content.toString())
+			// console.log("V", v.toString())
 			if (content.toString() == v.toString()) {
 				this.err = "Receive duplicate received data";
 				return;
@@ -1757,20 +1758,6 @@ class MsgHeader {
      *  @param {uint8Arr} receive data
      */
 	unpackAnswer(uint8Arr) {
-		// console.log("Uint8", uint8Arr);
-		let content;
-		if (this._isEnc) {
-			 content = new Uint8Array(uint8Arr.buffer, 17); // receive data expect txid 
-		} else {
-			content  = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
-		}
-		// console.log("Content", content);
-		console.log("Answer");
-		let repeateFlag = this.isAlreadReceive(content);
-		if (repeateFlag) {
-			this.err = "Receive duplication of data !";
-			return this.err;
-		}
 		// Normal
 		this._messageHeader.type = 'A';
 		let a = Object.assign(this._answer, this._messageHeader);
@@ -1784,19 +1771,25 @@ class MsgHeader {
 				return this.err;
 			}
 			let data = this.convertWordArrayToUint8Array(pt);
-			let header = new Uint8Array(uint8Arr.buffer, 0, 8);
-			
+			let header = new Uint8Array(uint8Arr.buffer, 0, 8);			
 			let tempArr = new Uint8Array(8 + data.length);
 			tempArr.set(header, 0);
 			tempArr.set(data, 8);
 			uint8Arr = tempArr;
 		}
+		let content;
+		content  = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
+		let repeateFlag = this.isAlreadReceive(content);
+		if (repeateFlag) {
+			return;
+		}
 		[a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
-		
+
 		[a.status, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 
 		[a.args, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 
+		this.receiveDataList[a.txid] =  content;// Record receive data list
 		if (8+len == pos) { // Decode Right
 			return a;
 		} else {
@@ -1858,12 +1851,13 @@ class MsgHeader {
 		    	break;
 		    case 'B':
 		    	msg = Object.assign(this._messageHeader, {type:'B'});
+		    	this._isEnc = false;
 		    	break;
 		    case 'C':
 		    	msg = this.unpackCheck(uint8Arr); // readyState: 1
 		    	if (typeof msg != "undefined" && msg != undefined) {
 		    		ws.send(msg);
-		    	} else if(this._messageHeader.flags == 0x01) {
+		    	} else if(this._isEnc) {
 		    		msg = "Pass SRP6a Verify!";
 		    	} else {
 		    		msg = "Verify fail!";
@@ -7831,8 +7825,8 @@ function ClientSocket() {
 		    	console.log('ws onmessage from server: ', data);
 		    	if (data.type !== undefined && data.type == 'H') {
 			    	callback(that.readyState);
-			    	// Temp add
-    				that.ws.send(that.msgHead.packMsg('H'));
+			    	// Temp test add 
+    				// that.ws.send(that.msgHead.packMsg('H'));
 			    }
 		    }).catch((error) => {
 		    	callback(error);
@@ -7918,7 +7912,7 @@ function ClientSocket() {
 			            }
 						return closeMsg;
 					case 'Q': 
-						// ToDo
+						// ToDo Temp test add 
 					 	// that.ws.send(that.msgHead.packMsg('H'));
 						break;
 					case 'A':
@@ -7985,13 +7979,14 @@ function ClientSocket() {
 				if (that.sendList.indexOf(j) != -1) {
 					if (that.ws.readyState == 1) {
 						that.readyState = 2;
-						if (that.sendList.length == 0) {
+						if (that.sendList.length == 0 || m > 3) {
 							clearInterval(resendTimer);
 							return true;
 						}
 					} else {
 						that.connect(that.url ,(readyState) => { // try to connect ws_server
 							if (readyState == 2) {
+								that.lockReconnect = false;
 								that.reConnectionFlag = true;
 								clearInterval(resendTimer);
 								that.sendList.length = 0;
@@ -8000,6 +7995,7 @@ function ClientSocket() {
 						});
 					}
 				}
+				m++;
 			});	
 		}, 1000);
 		if (that.sendList.length == 0) {
