@@ -14,6 +14,7 @@ function ClientSocket() {
     this.err = "";
     this.sendList = []; // record the request txid sequence that client send to server
     this.sendDataList = []; // record the request txid and data sequence that client send to server
+    this.undealDataList   = [];
     this.url = '';
 
     this.connectStatus = {
@@ -57,7 +58,7 @@ function ClientSocket() {
 		    	if (data.type !== undefined && data.type == 'H') {
 			    	callback(that.readyState);
 			    	// Temp add
-    				// that.ws.send(that.msgHead.packMsg('H'));
+    				that.ws.send(that.msgHead.packMsg('H'));
 			    }
 		    }).catch((error) => {
 		    	callback(error);
@@ -210,8 +211,10 @@ function ClientSocket() {
 				if (that.sendList.indexOf(j) != -1) {
 					if (that.ws.readyState == 1) {
 						that.readyState = 2;
-						clearInterval(resendTimer);
-						return true;
+						if (that.sendList.length == 0) {
+							clearInterval(resendTimer);
+							return true;
+						}
 					} else {
 						that.connect(that.url ,(readyState) => { // try to connect ws_server
 							if (readyState == 2) {

@@ -71,8 +71,9 @@
 				}
 				document.getElementById('info').appendChild(ele);
 			});
-			let conServerTime = setTimeout(() => {
+			conServerTime = setTimeout(() => {
 				if (client.reConnectionFlag) {
+					console.log("reConnectionFlag",client.reConnectionFlag)
 					ele.innerText = '【Server is reconnect !】';
 					document.getElementById('info').appendChild(ele);
 					clearTimeout(conServerTime);

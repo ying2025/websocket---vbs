@@ -419,10 +419,10 @@ class MsgHeader {
 			}
 			this.receiveList[this.receiveList.length] = q.txid; 
 			let msg = this.packAnswerBody(a);
-			return this.packAnswer(msg);
+			return [q, this.packAnswer(msg)];
 		} else {
 			this.err = "Decode message error, the length of encode byte dissatisfy VBS Requirement!";
-			return this.err;
+			return [q, this.err];
 		}
 	}
 	/**
@@ -433,7 +433,7 @@ class MsgHeader {
 		let flag = false;
 		this.receiveDataList.filter((v, j) => {
 			if (content.toString() == v.toString()) {
-				flag = true;
+				this.err = "Receive duplicate received data";
 				return;
 			}
 		});
@@ -511,6 +511,20 @@ class MsgHeader {
      *  @param {uint8Arr} receive data
      */
 	unpackAnswer(uint8Arr) {
+		// console.log("Uint8", uint8Arr);
+		let content;
+		if (this._isEnc) {
+			 content = new Uint8Array(uint8Arr.buffer, 17); // receive data expect txid 
+		} else {
+			content  = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
+		}
+		// console.log("Content", content);
+		console.log("Answer");
+		let repeateFlag = this.isAlreadReceive(content);
+		if (repeateFlag) {
+			this.err = "Receive duplication of data !";
+			return this.err;
+		}
 		// Normal
 		this._messageHeader.type = 'A';
 		let a = Object.assign(this._answer, this._messageHeader);
@@ -563,10 +577,11 @@ class MsgHeader {
 			let type = String.fromCharCode(uint8Arr[10]);
 			switch (type) {
 				case 'Q':
-			    	msg = this.unpackQuest(data);
-			    	if (typeof msg != "undefined" && msg != undefined) {
-			    		ws.send(msg);
+			    	let [q, sendMsg] = this.unpackQuest(data);
+			    	if (typeof sendMsg != "undefined" && sendMsg != undefined) {
+			    		ws.send(sendMsg);
 			    	}  
+			    	msg = q;
 		    		break;
 			    case 'A':
 			    	msg = this.unpackAnswer(data);
@@ -602,8 +617,10 @@ class MsgHeader {
 		    	msg = this.unpackCheck(uint8Arr); // readyState: 1
 		    	if (typeof msg != "undefined" && msg != undefined) {
 		    		ws.send(msg);
-		    	} else {
+		    	} else if(this._messageHeader.flags == 0x01) {
 		    		msg = "Pass SRP6a Verify!";
+		    	} else {
+		    		msg = "Verify fail!";
 		    	}
 		    	break;
 		    case 'Q':
