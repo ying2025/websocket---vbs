@@ -431,11 +431,9 @@ class MsgHeader {
 	isAlreadReceive(content) {
 		let flag = false;
 		this.receiveDataList.filter((v, j) => {
-			// console.log(content.toString() == v.toString(), content.toString())
-			// console.log("V", v.toString())
 			if (content.toString() == v.toString()) {
 				this.err = "Receive duplicate received data";
-				return;
+				return true;
 			}
 		});
 		return flag;
@@ -535,7 +533,7 @@ class MsgHeader {
 		content  = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
 		let repeateFlag = this.isAlreadReceive(content);
 		if (repeateFlag) {
-			return;
+			return this.err;
 		}
 		[a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
 

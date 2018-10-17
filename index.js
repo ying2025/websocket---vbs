@@ -1677,11 +1677,11 @@ class MsgHeader {
 	isAlreadReceive(content) {
 		let flag = false;
 		this.receiveDataList.filter((v, j) => {
-			// console.log(content.toString() == v.toString(), content.toString())
-			// console.log("V", v.toString())
+			console.log("Content" ,content.toString())
+			console.log("V" ,v.toString())
 			if (content.toString() == v.toString()) {
 				this.err = "Receive duplicate received data";
-				return;
+				return true;
 			}
 		});
 		return flag;
@@ -1781,7 +1781,7 @@ class MsgHeader {
 		content  = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
 		let repeateFlag = this.isAlreadReceive(content);
 		if (repeateFlag) {
-			return;
+			return this.err;
 		}
 		[a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
 
@@ -7912,7 +7912,7 @@ function ClientSocket() {
 			            }
 						return closeMsg;
 					case 'Q': 
-						// ToDo Temp test add 
+						// ToDoTemp test add 
 					 	// that.ws.send(that.msgHead.packMsg('H'));
 						break;
 					case 'A':
@@ -7988,6 +7988,7 @@ function ClientSocket() {
 							if (readyState == 2) {
 								that.lockReconnect = false;
 								that.reConnectionFlag = true;
+								that.msgHead = new msgHeader();
 								clearInterval(resendTimer);
 								that.sendList.length = 0;
 								return true;

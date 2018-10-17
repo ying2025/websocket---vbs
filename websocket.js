@@ -144,7 +144,7 @@ function ClientSocket() {
 			            }
 						return closeMsg;
 					case 'Q': 
-						// ToDo Temp test add 
+						// ToDoTemp test add 
 					 	// that.ws.send(that.msgHead.packMsg('H'));
 						break;
 					case 'A':
@@ -220,6 +220,7 @@ function ClientSocket() {
 							if (readyState == 2) {
 								that.lockReconnect = false;
 								that.reConnectionFlag = true;
+								that.msgHead = new msgHeader();
 								clearInterval(resendTimer);
 								that.sendList.length = 0;
 								return true;
