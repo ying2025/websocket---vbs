@@ -3,6 +3,7 @@ const vbsEncode = require('./VBS/encode.js');
 const vbsDecode = require('./VBS/decode.js');
 const  msgHeader  = require('./message.js').MsgHeader;
 let emptyString = "";
+let max_attemp_times = 3;
 let WebSocketClient;
 if (typeof WebSocket == "undefined" && !process.env.browser) {
 	WebSocketClient = require("ws");
@@ -26,6 +27,7 @@ function ClientSocket() {
     };
     this.readyState  = 1; 
     this.txid = 0;
+    this.maxAttempTimes = max_attemp_times; // Attemp reconnect time
 
     this.lockReconnect = false; 
     this.reconnectionAttempted = 0;
@@ -180,6 +182,14 @@ function ClientSocket() {
             	that.ws.send(that.msgHead.packMsg('B'));
             } else {
             	console.log("Waiting !!");
+            	let m = 0; // connect ws_server' times
+				let forceClose = setInterval(() => { //
+					if (m > that.maxAttempTimes) {
+						clearInterval(forceClose);
+						that.ws.close();
+					}
+					m++;
+				}, 3000);
             }
 		});
 	}
@@ -211,7 +221,7 @@ function ClientSocket() {
 				if (that.sendList.indexOf(j) != -1) {
 					if (that.ws.readyState == 1) {
 						that.readyState = 2;
-						if (that.sendList.length == 0 || m > 3) {
+						if (that.sendList.length == 0 || m > that.maxAttempTimes) {
 							clearInterval(resendTimer);
 							return true;
 						}
@@ -226,6 +236,10 @@ function ClientSocket() {
 								return true;
 							}
 						});
+						if (m > that.maxAttempTimes) {
+							clearInterval(resendTimer);
+							return true;
+						}
 					}
 				}
 				m++;

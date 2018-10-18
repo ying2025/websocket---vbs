@@ -1677,11 +1677,11 @@ class MsgHeader {
 	isAlreadReceive(content) {
 		let flag = false;
 		this.receiveDataList.filter((v, j) => {
-			console.log("Content" ,content.toString())
-			console.log("V" ,v.toString())
 			if (content.toString() == v.toString()) {
 				this.err = "Receive duplicate received data";
-				return true;
+				flag = true;
+				console.log("duplicate ID is:", j);
+				return;
 			}
 		});
 		return flag;
@@ -1777,19 +1777,26 @@ class MsgHeader {
 			tempArr.set(data, 8);
 			uint8Arr = tempArr;
 		}
-		let content;
-		content  = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
-		let repeateFlag = this.isAlreadReceive(content);
-		if (repeateFlag) {
-			return this.err;
-		}
+		// let content;
+		// content  = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
+		// let repeateFlag = this.isAlreadReceive(content);
+		// if (repeateFlag) {
+		// 	return this.err;
+		// }
 		[a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
 
 		[a.status, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 
 		[a.args, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-
+		let content;
+		content  = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
+		let repeateFlag = this.isAlreadReceive(content);
+		console.error("Error", a.txid, a.status)
+		if (repeateFlag) {
+			return this.err;
+		}
 		this.receiveDataList[a.txid] =  content;// Record receive data list
+		console.log("Content", content)
 		if (8+len == pos) { // Decode Right
 			return a;
 		} else {
@@ -7771,6 +7778,7 @@ const vbsEncode = require('./VBS/encode.js');
 const vbsDecode = require('./VBS/decode.js');
 const  msgHeader  = require('./message.js').MsgHeader;
 let emptyString = "";
+let max_attemp_times = 3;
 let WebSocketClient;
 if (typeof WebSocket == "undefined" && !process.env.browser) {
 	WebSocketClient = require("ws");
@@ -7794,6 +7802,7 @@ function ClientSocket() {
     };
     this.readyState  = 1; 
     this.txid = 0;
+    this.maxAttempTimes = max_attemp_times; // Attemp reconnect time
 
     this.lockReconnect = false; 
     this.reconnectionAttempted = 0;
@@ -7948,6 +7957,14 @@ function ClientSocket() {
             	that.ws.send(that.msgHead.packMsg('B'));
             } else {
             	console.log("Waiting !!");
+            	let m = 0; // connect ws_server' times
+				let forceClose = setInterval(() => { //
+					if (m > that.maxAttempTimes) {
+						clearInterval(forceClose);
+						that.ws.close();
+					}
+					m++;
+				}, 3000);
             }
 		});
 	}
@@ -7979,7 +7996,7 @@ function ClientSocket() {
 				if (that.sendList.indexOf(j) != -1) {
 					if (that.ws.readyState == 1) {
 						that.readyState = 2;
-						if (that.sendList.length == 0 || m > 3) {
+						if (that.sendList.length == 0 || m > that.maxAttempTimes) {
 							clearInterval(resendTimer);
 							return true;
 						}
@@ -7994,6 +8011,10 @@ function ClientSocket() {
 								return true;
 							}
 						});
+						if (m > that.maxAttempTimes) {
+							clearInterval(resendTimer);
+							return true;
+						}
 					}
 				}
 				m++;
