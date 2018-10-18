@@ -7778,7 +7778,7 @@ const vbsEncode = require('./VBS/encode.js');
 const vbsDecode = require('./VBS/decode.js');
 const  msgHeader  = require('./message.js').MsgHeader;
 let emptyString = "";
-let max_attemp_times = 3;
+let max_attemp_times = 2;
 let WebSocketClient;
 if (typeof WebSocket == "undefined" && !process.env.browser) {
 	WebSocketClient = require("ws");
@@ -7957,14 +7957,6 @@ function ClientSocket() {
             	that.ws.send(that.msgHead.packMsg('B'));
             } else {
             	console.log("Waiting !!");
-            	let m = 0; // connect ws_server' times
-				let forceClose = setInterval(() => { //
-					if (m > that.maxAttempTimes) {
-						clearInterval(forceClose);
-						that.ws.close();
-					}
-					m++;
-				}, 3000);
             }
 		});
 	}
@@ -7991,15 +7983,21 @@ function ClientSocket() {
 				clearInterval(resendTimer);
 				return true;
 			} 
+			console.log("-------filter-------")
 			that.sendDataList.filter((v, j) => {
-				// Todo
 				if (that.sendList.indexOf(j) != -1) {
 					if (that.ws.readyState == 1) {
 						that.readyState = 2;
-						if (that.sendList.length == 0 || m > that.maxAttempTimes) {
+						if (that.sendList.length == 0 || m > (that.maxAttempTimes * that.sendList.length)) {
 							clearInterval(resendTimer);
 							return true;
 						}
+						console.time("test");
+						that.ws.send(v[j]);
+						
+						// waitSend(v[j]);
+						console.timeEnd("test");
+						console.log("-----send-------", m)
 					} else {
 						that.connect(that.url ,(readyState) => { // try to connect ws_server
 							if (readyState == 2) {
@@ -8016,16 +8014,24 @@ function ClientSocket() {
 							return true;
 						}
 					}
+					m++;
 				}
-				m++;
 			});	
-		}, 1000);
+		}, 5000);
 		if (that.sendList.length == 0) {
 			return true;
 		} else {
 			return false;
 		}
 		
+	}
+	async function waitSend(v) {
+	  that.ws.send(v);
+	  await sleep(1000)
+	}
+
+	function sleep(ms) {
+	  return new Promise(resolve => setTimeout(resolve, ms))
 	}
 	/**
      *  @dev _readerBlob
