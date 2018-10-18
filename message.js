@@ -531,26 +531,20 @@ class MsgHeader {
 			tempArr.set(data, 8);
 			uint8Arr = tempArr;
 		}
-		// let content;
-		// content  = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
-		// let repeateFlag = this.isAlreadReceive(content);
-		// if (repeateFlag) {
-		// 	return this.err;
-		// }
+		let content;
+		content  = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
+		let repeateFlag = this.isAlreadReceive(content);
+		if (repeateFlag) {
+			console.error(this.err);
+			return this.err;
+		}
 		[a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
 
 		[a.status, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 
 		[a.args, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-		let content;
-		content  = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
-		let repeateFlag = this.isAlreadReceive(content);
-		console.error("Error", a.txid, a.status)
-		if (repeateFlag) {
-			return this.err;
-		}
+		
 		this.receiveDataList[a.txid] =  content;// Record receive data list
-		console.log("Content", content)
 		if (8+len == pos) { // Decode Right
 			return a;
 		} else {

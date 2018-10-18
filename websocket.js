@@ -26,7 +26,7 @@ function ClientSocket() {
     	closed: 4  // closed
     };
     this.readyState  = 1; 
-    this.txid = 0;
+    this.txid = 1;
     this.maxAttempTimes = max_attemp_times; // Attemp reconnect time
 
     this.lockReconnect = false; 
@@ -98,9 +98,14 @@ function ClientSocket() {
      *  Additional describe: that.sendList use to record sequence that send to server
      *		that.sendDataList use to record sequence and the relevant data
      */
-    ClientSocket.prototype.sendData = function(msgBody) {
+    ClientSocket.prototype.sendData = function(msgBody, singleSign) {
     	if (that.readyState  == that.connectStatus.open) {
-			let txid = _generateTxid();
+    		let txid;
+    		if (singleSign) { // Single request
+    			txid = 0;
+    		} else {
+    			txid = _generateTxid();
+    		}
 			// if (that.sendList.length > 5) {
 			// 	that.err = "Please send message to server later !";
 			// 	return that.err;
@@ -208,7 +213,6 @@ function ClientSocket() {
 				clearInterval(resendTimer);
 				return true;
 			} 
-			console.log("-------filter-------")
 			that.sendDataList.filter((v, j) => {
 				if (that.sendList.indexOf(j) != -1) {
 					if (that.ws.readyState == 1) {
@@ -217,11 +221,10 @@ function ClientSocket() {
 							clearInterval(resendTimer);
 							return true;
 						}
-						// console.time("test");
+						console.time("test");
 						// that.ws.send(v[j]);
 						waitSend(v[j]);
-						// console.timeEnd("test");
-						console.log("-----send-------", m)
+						console.timeEnd("test");
 					} else {
 						that.connect(that.url ,(readyState) => { // try to connect ws_server
 							if (readyState == 2) {
@@ -233,8 +236,9 @@ function ClientSocket() {
 								return true;
 							}
 						});
-						if (m > that.maxAttempTimes) {
+						if (m > that.maxAttempTimes || that.ws.readyState == 1) {
 							clearInterval(resendTimer);
+							that.sendList.length = 0;
 							return true;
 						}
 					}
@@ -249,12 +253,20 @@ function ClientSocket() {
 		}
 		
 	}
+	/**
+     *  @dev waitSend
+     *  Fun: send v and then wait for 3 s
+     */
 	async function waitSend(v) {
 	  that.ws.send(v);
-	  await sleep(3000);
+	  await _sleep(2000);
 	}
-
-	function sleep(ms) {
+	/**
+     *  @dev _sleep
+     *  Fun: time _sleep
+     *  return time
+     */
+	function _sleep(ms) {
 	  return new Promise(resolve => setTimeout(resolve, ms));
 	}
 	/**

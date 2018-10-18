@@ -8,7 +8,8 @@
 	<div>
 	    <input type="text" id="txt">
 	    <input type="button" id="connect" value="Connect" onclick="connectting()">
-	    <input type="button" id="submit" value="Send Data" onclick="sendMsg()">
+	    <input type="button" id="submit" value="Send Data" onclick="sendMsg(false)">
+	    <input type="button" id="submit" value="Send Only" onclick="sendMsg(true)">
 	    <input type="button" id="close" value="Close Connect" onclick="closeConn()">
 	</div>
 
@@ -88,7 +89,7 @@
 			}, 2000);
 		}
 
-		function sendMsg() {
+		function sendMsg(singleSign) {
 			let ele = document.createElement('div');
 			let txt = document.getElementById('txt');
 			let value = txt.value;
@@ -102,7 +103,7 @@
 	        	document.getElementById('info').appendChild(ele);
 	        	return;
 			}
-			err = client.sendData(txt.value);
+			err = client.sendData(txt.value, singleSign);
 			if (err != emptyString && err != undefined) {
 				ele.innerText = '【Error: 】' + err;
 				document.getElementById('info').appendChild(ele);

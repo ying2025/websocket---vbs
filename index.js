@@ -1777,26 +1777,20 @@ class MsgHeader {
 			tempArr.set(data, 8);
 			uint8Arr = tempArr;
 		}
-		// let content;
-		// content  = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
-		// let repeateFlag = this.isAlreadReceive(content);
-		// if (repeateFlag) {
-		// 	return this.err;
-		// }
+		let content;
+		content  = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
+		let repeateFlag = this.isAlreadReceive(content);
+		if (repeateFlag) {
+			console.error(this.err);
+			return this.err;
+		}
 		[a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
 
 		[a.status, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 
 		[a.args, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-		let content;
-		content  = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
-		let repeateFlag = this.isAlreadReceive(content);
-		console.error("Error", a.txid, a.status)
-		if (repeateFlag) {
-			return this.err;
-		}
+		
 		this.receiveDataList[a.txid] =  content;// Record receive data list
-		console.log("Content", content)
 		if (8+len == pos) { // Decode Right
 			return a;
 		} else {
@@ -7801,7 +7795,7 @@ function ClientSocket() {
     	closed: 4  // closed
     };
     this.readyState  = 1; 
-    this.txid = 0;
+    this.txid = 1;
     this.maxAttempTimes = max_attemp_times; // Attemp reconnect time
 
     this.lockReconnect = false; 
@@ -7873,9 +7867,14 @@ function ClientSocket() {
      *  Additional describe: that.sendList use to record sequence that send to server
      *		that.sendDataList use to record sequence and the relevant data
      */
-    ClientSocket.prototype.sendData = function(msgBody) {
+    ClientSocket.prototype.sendData = function(msgBody, singleSign) {
     	if (that.readyState  == that.connectStatus.open) {
-			let txid = _generateTxid();
+    		let txid;
+    		if (singleSign) {
+    			txid = 0;
+    		} else {
+    			txid = _generateTxid();
+    		}
 			// if (that.sendList.length > 5) {
 			// 	that.err = "Please send message to server later !";
 			// 	return that.err;
@@ -7983,7 +7982,6 @@ function ClientSocket() {
 				clearInterval(resendTimer);
 				return true;
 			} 
-			console.log("-------filter-------")
 			that.sendDataList.filter((v, j) => {
 				if (that.sendList.indexOf(j) != -1) {
 					if (that.ws.readyState == 1) {
@@ -7993,11 +7991,9 @@ function ClientSocket() {
 							return true;
 						}
 						console.time("test");
-						that.ws.send(v[j]);
-						
-						// waitSend(v[j]);
+						// that.ws.send(v[j]);
+						waitSend(v[j]);
 						console.timeEnd("test");
-						console.log("-----send-------", m)
 					} else {
 						that.connect(that.url ,(readyState) => { // try to connect ws_server
 							if (readyState == 2) {
@@ -8009,8 +8005,9 @@ function ClientSocket() {
 								return true;
 							}
 						});
-						if (m > that.maxAttempTimes) {
+						if (m > that.maxAttempTimes || that.ws.readyState == 1) {
 							clearInterval(resendTimer);
+							that.sendList.length = 0;
 							return true;
 						}
 					}
@@ -8025,13 +8022,21 @@ function ClientSocket() {
 		}
 		
 	}
+	/**
+     *  @dev waitSend
+     *  Fun: send v and then wait for 3 s
+     */
 	async function waitSend(v) {
 	  that.ws.send(v);
-	  await sleep(1000)
+	  await _sleep(2000);
 	}
-
-	function sleep(ms) {
-	  return new Promise(resolve => setTimeout(resolve, ms))
+	/**
+     *  @dev _sleep
+     *  Fun: time _sleep
+     *  return time
+     */
+	function _sleep(ms) {
+	  return new Promise(resolve => setTimeout(resolve, ms));
 	}
 	/**
      *  @dev _readerBlob
