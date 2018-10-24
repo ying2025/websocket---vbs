@@ -10,10 +10,15 @@ const maxAttempTimes = 3;
 let   sleepTime  = 5000; // 5 second
 let   emptyString = "";
 let   emptyArray  = [];
+/**
+ *  @dev ServerSocket class
+ *  descirpe: deal Websocket event
+ *       init server param, listen the connect
+ */
 class ServerSocket {
       constructor() {
           this.err     = "";
-          this.msgHead = new msgHeader();
+          // this.msgHead = new msgHeader();
           let client = {
              rejectReqFlag: false,
              closeFlag: false,
@@ -30,6 +35,7 @@ class ServerSocket {
              sendList: [],
              receiveDataList: [],
              sendDataList: [],
+             // msgHead: msgHeader,
              srv: null
           };
           this.connect_promise = new Promise((resolve, reject) => {
@@ -39,29 +45,28 @@ class ServerSocket {
               port: 8989
             }, () => {
               const ws = new WebSocket(`ws://localhost:${wss.address().port}`);
-              console.log("begin")
+              console.log("begin to connect");
             });
             wss.on('connection', (ws, req) => {
-              let ip = req.connection.remoteAddress;
-
-              ws = Object.assign(ws, client);
-              this.sayHello(ws, this.msgHead);
-              let that = this;
-              ws.on('message', function incoming(data) {
-                  try {
-                      let msg = dealRequest(that.msgHead, ws, data);
-                      console.log("Receive message from client", msg);
-                  } catch(e) {
-                      console.error(e);
-                  }
-              });
-              // ws.send(this.msgHead.packMsg('H'));
-            });
-            wss.on('error', (evt) => {
-              console.error("error", evt)
-            });
-            wss.on('close', (evt) => {
-              console.log("Close", evt);
+                let ip = req.connection.remoteAddress;
+                console.log("Connecting IP", ip);
+                ws = Object.assign(ws, client);
+                let msgHead = new msgHeader();
+                this.sayHello(ws, msgHead);
+                ws.on('message', function incoming(data) {
+                    try {
+                        let msg = dealRequest(msgHead, ws, data);
+                        // console.log("Receive message from client", msg);
+                    } catch(e) {
+                        console.error(e);
+                    }
+                });
+                ws.on('error', (error) => {
+                    console.log("error", error);
+                });
+                ws.on('close', (evt) => {
+                  console.log("Close", evt);
+                });
             });
             wss.on('listening', () => {
               console.log("Begin listen")
@@ -69,6 +74,14 @@ class ServerSocket {
           });
           
     }
+    /**
+     *  @dev sayHello
+     *  Fun: check the encrypt flag. If the flag is true, 
+     *       then pack Authenticate message to client, 
+     *       else send Hello to client.
+     *  @param {ws} Websocket Object.
+     *  @param {msgHeader} msgHeader Object
+     */
     sayHello(ws, msgHeader) {
        let greetByte;
        if (ws.isEnc) {
@@ -81,6 +94,13 @@ class ServerSocket {
           throw new Error("Send failed");
        }
     }
+    /**
+     *  @dev outCheck
+     *  Fun: SRP6a consult the common key, return C type message data 
+     *       pack the command and args, then decode outcheck with VBS
+     *       pack header and encode outcheck message, then send the C type message
+     *  @param {msgHeader} msgHeader Object
+     */
     outCheck(msgHeader) {
        msgHeader._messageHeader.type = 'C';
        let c = Object.assign(msgHeader._check, msgHeader._messageHeader);
@@ -89,6 +109,16 @@ class ServerSocket {
        return msgHeader.packCheck(c.cmd, c.arg);
     }
 }
+/**
+ *  @dev dealRequest
+ *  Fun: resolve the receive message, and  response it
+ *     If already receive B type message, the rejectReqFlag is true.
+ *     If message is encrypt, then  remove nonce   
+ *     If receive duplication of data, do nothing with it.
+ *  @param {msgHeader}  msgHeader Object      
+ *  @param {ws}         Websocket Object
+ *  @param {bufferData} receive message
+ */
 function dealRequest(msgHead, ws, bufferData) {
     let err;
     if (ws.closeFlag == true) {
@@ -125,6 +155,17 @@ function dealRequest(msgHead, ws, bufferData) {
     }
     resolveRequest(header, bufData, ws, msgHead, serverFunc);
 } 
+/**
+ *  @dev resolveRequest
+ *  Fun: resolve the receive message, and  response it
+ *     If already receive B type message, the rejectReqFlag is true.
+ *     If message is encrypt, then  remove nonce   
+ *  @param {header}     message header Object  
+ *  @param {bufferData} receive message    
+ *  @param {ws}         Websocket Object
+ *  @param {msgHead}    msgHead Object
+ *  @param {serverFunc} serverFunc Object
+ */
 function resolveRequest(header, bufData, ws, msgHead, serverFunc){
     let err;
     let head   = serverFunc.getHeader(header);
@@ -174,7 +215,12 @@ function resolveRequest(header, bufData, ws, msgHead, serverFunc){
           }
     }
 }
-
+/**
+ *  @dev ServerFunc
+ *  Fun: deal Q、A、C、B type message function set
+ *  @param {ws}         Websocket Object
+ *  @param {msgHeader}  msgHeader Object      
+ */
 class ServerFunc {
     constructor(ws, msgHeader) {
         this.ws = ws;
@@ -184,6 +230,11 @@ class ServerFunc {
         this.attempTimes   = 0;
         this.sleepTime     = sleepTime;
     }
+    /**
+     *  @dev isRepeatData
+     *  Fun: Judge whether receive repeated data
+     *  @param {bufferData} receive message         
+     */
     isRepeatData(bufData) {
         this.ws.unDealReplyList.filter((v, j) => {
             if (v.toString() == bufData.toString()) {
@@ -193,6 +244,11 @@ class ServerFunc {
         this.ws.unDealReplyList[this.ws.unDealReplyList.length] = bufData;
         return false;
     }
+    /**
+     *  @dev getHeader
+     *  Fun: resolve the header
+     *  @param {header} receive message of the first 8 byte        
+     */
     getHeader(header) {
         this.messageHeader.magic    = String.fromCharCode(header[0]);
         this.messageHeader.version  = String.fromCharCode(header[1]);
@@ -201,6 +257,11 @@ class ServerFunc {
         this.messageHeader.bodySize = (header[4]<<24) + (header[5]<<16) + (header[6]<<8) + header[7];
         return this.messageHeader;
     }
+    /**
+     *  @dev checkHeader
+     *  Fun: check the header whether is qualified 
+     *  @param {header} receive message of the first 8 byte        
+     */
     checkHeader(header) {
         if (header.magic != 'X' || header.version != '!') {
              this.err = "Unknown message Magic "+header.magic+" Version"+ header.version; 
@@ -231,6 +292,11 @@ class ServerFunc {
          }
          return emptyString;
     }
+    /**
+     *  @dev deleteUndealData
+     *  Fun: delete unDealReplyList which is dealing
+     *  @param {bufData} receive message      
+     */
     deleteUndealData(bufData) {
         this.ws.unDealReplyList.filter((v, j) => {
             if (v.toString() == bufData.toString()) {
@@ -238,7 +304,12 @@ class ServerFunc {
             }
         });
     }
-
+    /**
+     *  @dev packQuest
+     *  Fun: pack message, send to client.
+     *  Additional describe: If encrypt then the format is nonce(8 bytes) + header(8 bytes) + message(ciphertext)
+     *                   else header(8 bytes) + message(Plaintext)
+     */
     packQuest(isEnc) {
         let q = Object.assgin(this.msgHeader._quest, {txid: this.ws.txid});
         let ctx = {"sd":344};
@@ -255,6 +326,14 @@ class ServerFunc {
         this.ws.txid++;
         return msg;
     }
+    /**
+     *  @dev dealRequest
+     *  Fun: resolve the request data from client that type is Q
+     *      If txid is 0, do nothing, else if the message has alread recceived, 
+     *      pack the error message to client,else pack the answer to client
+     *      send answer to client
+     *  @param {bufData} receive message      
+     */
     dealRequest(bufData) {
         this.msgHeader._isEnc = bufData[3];
         this.msgHeader.vec.key = commonFun.bytes2Str(this.ws.key);
@@ -271,6 +350,13 @@ class ServerFunc {
             return;
         }
     }
+    /**
+     *  @dev dealCheck
+     *  Fun: resolve C type data
+     *      Get data body, then decode the data with vbs
+     *      According to command, send the reference message to client.
+     *  @param {bufData} receive message      
+     */
     dealCheck(bufData) {
         let c = this.msgHeader._check;
         let pos = 0;
@@ -342,6 +428,13 @@ class ServerFunc {
         }
         return this.msgHeader.packCheck(this.msgHeader._check.cmd, this.msgHeader._check.arg);
     }
+    /**
+     *  @dev dealAnswer
+     *  Fun: Deal A type message
+     *      Get answer type message
+     *      Remove txid from sendList
+     *  @param {bufData} receive message      
+     */
     dealAnswer(bufData) {
         let a = this.msgHeader.unpackAnswer(bufData);
         if (this.msgHeader.err != emptyString && this.msgHeader.err != undefined) {
@@ -350,6 +443,14 @@ class ServerFunc {
         }
         this.ws.sendList.filter(v => v!= a.txid);
     }
+    /**
+     *  @dev gracefulClose
+     *  Fun: Gracefully close the connection with one client.
+     *      If unDealReplyList/receiveList/sendList is empty, directly send Bye to client
+     *      else deal with request firstly, send Bye to client when receiveList is empty
+     *  @param {serverFunc} serverFunc Object  
+     *  @param {header}     the message of header    
+     */
     gracefulClose(serverFunc, header) {
         let flag = false;
         let len, i=0;

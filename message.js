@@ -437,7 +437,6 @@ class MsgHeader {
 		
 		if (8+len == pos) { // Decode Right
 			if (this.receiveList.indexOf(q.txid) == -1) {
-				console.log(this.receiveList, q.txid);
 				this.receiveDataList[q.txid] =  content// Record receive data list
 				this.receiveList[this.receiveList.length] = q.txid;
 			}
