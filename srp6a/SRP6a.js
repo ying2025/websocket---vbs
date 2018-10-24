@@ -202,6 +202,132 @@ function Srp6aBase() {
 		}
 		return b._M2;
 	}
+
+	Srp6aBase.prototype.computeK = function(b) {
+		if (b._K.length == 0) {
+			// Compute: K = SHA1(PAD(S)) 
+			let buf1 = new Array(b.byteLen);
+			let h = b.hasher();
+			this._padCopy(buf1, b._S);
+			let u_temp = h.update(buf1).digest('hex');
+			b._K = commonFun.str2Bytes(u_temp);
+			if (b._K .length < 32) {
+				let buf2 = new Array(32);
+				this._padCopy(buf2, b._K);
+				b._K = buf2;
+			}
+		}
+		return b._K;
+	}
+}
+//Server
+function Srp6aServer() {
+	Srp6aServer.prototype.iv = bigInterger(0);
+	Srp6aServer.prototype.ib = bigInterger(0);
+	Srp6aServer.prototype.iA = bigInterger(0);
+
+	Srp6aServer.prototype.setV = function(v) {
+	   if (commonFun.bigisZero(this.iv)&& this.err == emptyString && v != arrEmpty) {
+	   		this.iv = bigInterger.fromArray(v, 256);
+	   }
+	}
+
+	Srp6aServer.prototype.setA = function(A) {
+		if (this.err == emptyString && A != arrEmpty) {
+			if (A.length > this.byteLen) {
+				this.err = "Invalid A, too large";
+				return;
+			} else {
+				this.iA = bigInterger.fromArray(A, 256);
+				// 若srv.iA % this.iN == 0
+				if (commonFun.bigisZero(bigInterger(this.iA).mod(this.iN))) {
+					this.err = "Invalid A, A%%N == 0";
+					return;
+				}
+				this._A = new Array(this.byteLen);
+				this._padCopy(this._A, A);
+			}
+		}
+	}
+ 
+	Srp6aServer.prototype._setB = function(b) {
+		this.ib = bigInterger(b, 16);
+	    // Compute: B = (k*v + g^b) % N
+	    let i1 = bigInterger(this.ik).multiply(this.iv)
+
+	    let i2 = bigInterger(this.ig).modPow(this.ib, this.iN);
+	    // (i1 + i2) % N
+	    let i3 = bigInterger(bigInterger(i1).add(i2)).mod(this.iN);
+
+	    if (commonFun.bigisZero(i3)) {
+	    	return arrEmpty;
+	    }
+
+	    this._B = new Array(this.byteLen);
+	    let b_iN = bigInterger(i3).toString(16);
+		let v_iN = commonFun.str2Bytes(b_iN);
+	    this._padCopy(this._B, v_iN);
+		return this._B;
+	}
+	Srp6aServer.prototype.generateB = function() {
+		if (this._B.length == 0 && this.err == emptyString) {
+			let buf = Array.apply(null, Array(randomSize)).map(function(item, i) {
+				    return 0;
+				});
+			for (;this._B.length == 0;) {
+				let err = this.randomBytes(buf);
+				if (err != emptyString) {
+					this.err = err;
+					return emptyString;
+				}
+				let newbuf = commonFun.bytes2Str(buf[buf.length-1]);  // 将其转为16进制字符串
+				this._setB(newbuf);
+
+				if (this._A.length > 0) {
+					let u = _computeU(this.hasher, this.byteLen, this._A, this._B);
+					if (u.length == 0) {
+						this._B = arrEmpty;
+					} else {
+						this._u = u;
+					}
+				}
+			}
+		}
+		return this._B;
+	}
+	Srp6aServer.prototype.serverComputeS = function() {
+		if (this._S.length == 0 && this.err == emptyString) {
+			if (this._A.length == 0 || commonFun.bigisZero(this.iv)) {
+				this.err = "A or v is not set yet";
+				return emptyString;
+			}
+			this.generateB();
+			this._compute_u(this);
+			if (this.err != emptyString) {
+				return emptyString;
+			}
+			// Compute: S_host = (A * v^u) ^ b % N	
+			let iu = bigInterger.fromArray(this._u, 256); // 根据数组生成对应的big类型
+			// i1 = A * ((v^u)%N)
+			let i1 = bigInterger(this.iv).modPow(iu, this.iN).multiply(this.iA).mod(this.iN);
+			//(i1^b) % N
+			i1 = bigInterger(i1).modPow(this.ib, this.iN);
+
+			let b_i1 = bigInterger(i1).toString(16);
+		    let v_i1 = commonFun.str2Bytes(b_i1);
+		    this._S = new Array(this.byteLen);
+			this._padCopy(this._S, v_i1);
+		}
+		return this._S;
+	}
+}
+Srp6aServer.prototype = new Srp6aBase();
+function NewServer(g, N, bits, hashName) {
+	let srv = new Srp6aServer();
+	srv = Object.assign(srv, commonFun.deepClone(srp6aBase)); 
+	srv._setHash(srv, hashName);
+	srv._setParameter(srv, g, N, bits);
+	return srv;
 }
 
 // Client
@@ -358,22 +484,6 @@ function Srp6aClient() {
 		}
 		return this._S;
 	}
-	Srp6aClient.prototype.computeK = function(b) {
-		if (b._K.length == 0) {
-			// Compute: K = SHA1(PAD(S)) 
-			let buf1 = new Array(b.byteLen);
-			let h = b.hasher();
-			this._padCopy(buf1, b._S);
-			let u_temp = h.update(buf1).digest('hex');
-			b._K = commonFun.str2Bytes(u_temp);
-			if (b._K .length < 32) {
-				let buf2 = new Array(32);
-				this._padCopy(buf2, b._K);
-				b._K = buf2;
-			}
-		}
-		return b._K;
-	}
 }
 Srp6aClient.prototype = new Srp6aBase();
 function NewClient() {
@@ -382,5 +492,6 @@ function NewClient() {
 	return cli;
 }
 module.exports = {
-	NewClient
+	NewClient,
+	NewServer
 }
