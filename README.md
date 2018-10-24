@@ -23,8 +23,11 @@ Firstly, You should install the necessary package as following.
                   npm install hash.js
                   npm install --save crypto-js pkaminski/cryptojs-extension
 Secondly, You must use eax such as following
+
                   let fs = require("fs");
-		let CryptoJS = require('crypto-js/core');
-		require('cryptojs-extension/build_node/eax.js');
+		  let CryptoJS = require('crypto-js/core');
+		  require('cryptojs-extension/build_node/eax.js');
 Thirdly, You can debug nodejs as following
-                 node --inspect websocketServer.js
+
+
+                  node --inspect websocketServer.js
