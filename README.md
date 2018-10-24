@@ -1,4 +1,4 @@
-# Websocket + VBS-encode/decode + xic+EAX
+# Websocket + VBS-encode/decode + XIC+EAX
 Client run in Browser.
 Firstly, You should install the necessary package as following.         
          
