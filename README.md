@@ -10,10 +10,12 @@ Secondly, You should conver into a program that can be run by a browser.
                    npm  install browserify -g. 
                    browserify websocket.js > index.js  
 Now you can use it in html just by
-  <script type="text/javascript" src="./index.js"></script>
-  <script type="text/javascript" src="./EAX/cryptojs-aes.min.js"></script>
-  <script type="text/javascript" src="./EAX/cryptojs-mode-ctr.min.js"></script>
-  <script type="text/javascript" src="./EAX/eax.js"></script>
+
+
+                 <script type="text/javascript" src="./index.js"></script>
+ 		 <script type="text/javascript" src="./EAX/cryptojs-aes.min.js"></script>
+ 		 <script type="text/javascript" src="./EAX/cryptojs-mode-ctr.min.js"></script>
+ 		 <script type="text/javascript" src="./EAX/eax.js"></script>
 Server run in node.
 Firstly, You should install the necessary package as following.         
          
