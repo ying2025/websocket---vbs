@@ -2,20 +2,6 @@ const vbsEncode = require('./VBS/encode.js');
 const vbsDecode = require('./VBS/decode.js');
 const commonFun = require('./commonFun.js');
 const srp6aClient = require('./srp6a/SRP6a.js').NewClient;
-// const srp6aServer = require('./srp6a/SRP6a.js').NewServer;
-// const srp6aClient = require('./srp6a/SRP6a.js');
-let aesContent, ctrContent, eaxContent;
-// if (typeof(window) === 'undefined') {
-// 	const fs = require("fs");
-// 	const aesContent = fs.readFileSync("./EAX/cryptojs-aes.min.js", "utf8");
-// 	const ctrContent = fs.readFileSync("./EAX/cryptojs-mode-ctr.min.js", "utf8");
-// 	const eaxContent = fs.readFileSync("./EAX/eax.js", "utf8");
-// }
-// if (typeof(window) === 'undefined') {
-// 	let fs = require("fs");
-// 	let CryptoJS = require('crypto-js/core');
-// 	require('cryptojs-extension/build_node/eax.js');
-// }
 
 let emptyString = "";
 let maxMessageSize = 64*1024*1024;
@@ -445,8 +431,7 @@ class MsgHeader {
 		}
 
 		[q.service, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-		[q.method, po
-		s] = vbsDecode.decodeVBS(uint8Arr, pos);
+		[q.method, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		[q.ctx, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		[q.args, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		

@@ -6,7 +6,7 @@ const vbsDecode = require('./VBS/decode.js');
 const commonFun = require('./commonFun.js');
 const maxPayload = 20480;
 const maxMessageSize = 64*1024*1024;
-let   maxAttempTimes = 3;
+const maxAttempTimes = 3;  
 let   sleepTime  = 5000; // 5 second
 let   emptyString = "";
 let   emptyArray  = [];
@@ -58,7 +58,7 @@ class ServerSocket {
               // ws.send(this.msgHead.packMsg('H'));
             });
             wss.on('error', (evt) => {
-              console.log("error", evt)
+              console.error("error", evt)
             });
             wss.on('close', (evt) => {
               console.log("Close", evt);
@@ -68,13 +68,6 @@ class ServerSocket {
             });
           });
           
-    }
-      
-    listener() {
-         console.log(11111) 
-    } 
-    replyMsg() {
-
     }
     sayHello(ws, msgHeader) {
        let greetByte;
@@ -131,62 +124,13 @@ function dealRequest(msgHead, ws, bufferData) {
        return;
     }
     resolveRequest(header, bufData, ws, msgHead, serverFunc);
-    // let header = new Uint8Array(bufData.buffer, 0, 8);
-    // let head   = serverFunc.getHeader(header);
-    // err = serverFunc.checkHeader(head);
-    // if (err != emptyString) {
-    //     return err;
-    // }
-    // serverFunc.deleteUndealData();
-    // let res;
-    // switch(head.type) {
-    //     case 'H':
-    //         res = serverFunc.packQuest(serverFunc.isEnc);
-    //         break;
-    //     case 'Q':
-    //         res = serverFunc.dealRequest(bufData);
-    //         break;
-    //     case 'C':
-    //         res = serverFunc.dealCheck(bufData);
-    //         if (ws.canSendHel) {  
-    //             ws.send(res);
-    //             res = msgHead.packMsg('H');
-    //         }
-    //         break;
-    //     case 'A':
-    //         res = serverFunc.dealAnswer(bufData);
-    //         break;
-    //     case 'B':
-    //         ws.rejectReqFlag = true;
-    //         let flag = serverFunc.gracefulClose();
-    //         if (flag) {
-    //            ws.close();
-    //         } else {
-    //            return;
-    //         }
-    //         break;
-    //     default:
-    //         err = "ERROR Message";
-    // }
-    // if (serverFunc.err != emptyString && serverFunc.err != undefined) {
-    //     console.error("Error:", serverFunc.err);
-    //     return;
-    //     // throw new Error(serverFunc.err);
-    // }
-    // if (res != emptyArray && (typeof res != 'undefined') && res != undefined) {
-    //       err = ws.send(res);
-    //       if (err != emptyString && err != undefined) {
-    //          console.error("send failed", err);
-    //          return err;
-    //       }
-    // }
 } 
 function resolveRequest(header, bufData, ws, msgHead, serverFunc){
     let err;
     let head   = serverFunc.getHeader(header);
-    err = serverFunc.checkHeader(head);
-    if (err != emptyString) {
-        throw new Error(err);
+    serverFunc.checkHeader(head);
+    if (serverFunc.err != emptyString) {
+        throw new Error(serverFunc.err);
     }
     serverFunc.deleteUndealData(bufData);
     let res;
@@ -300,6 +244,9 @@ class ServerFunc {
         let ctx = {"sd":344};
         let arg = {"sj":89};
         let msg = this.msgHeader.packQuest(q.txid, "service","method", ctx, arg);
+        if (this.msgHeader.err != emptyString && this.msgHeader.err != undefined) {
+              throw new Error(this.msgHeader.err);
+        }
         let len = msg.byteLength;
         if (q.txid != 0) {
            this.ws.sendList[this.ws.sendList.length] = q.txid; 
@@ -454,3 +401,10 @@ function _sleep(ms) {
 }
 
 new ServerSocket();
+
+module.exports = {
+    ServerSocket
+}
+
+
+
