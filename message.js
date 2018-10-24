@@ -2,14 +2,20 @@ const vbsEncode = require('./VBS/encode.js');
 const vbsDecode = require('./VBS/decode.js');
 const commonFun = require('./commonFun.js');
 const srp6aClient = require('./srp6a/SRP6a.js').NewClient;
+// const srp6aServer = require('./srp6a/SRP6a.js').NewServer;
 // const srp6aClient = require('./srp6a/SRP6a.js');
-
-if (typeof(window) === 'undefined') {
-	const fs = require("fs");
-	const aesContent = fs.readFileSync("./EAX/cryptojs-aes.min.js", "utf8");
-	const ctrContent = fs.readFileSync("./EAX/cryptojs-mode-ctr.min.js", "utf8");
-	const eaxContent = fs.readFileSync("./EAX/eax.js", "utf8");
-}
+let aesContent, ctrContent, eaxContent;
+// if (typeof(window) === 'undefined') {
+// 	const fs = require("fs");
+// 	const aesContent = fs.readFileSync("./EAX/cryptojs-aes.min.js", "utf8");
+// 	const ctrContent = fs.readFileSync("./EAX/cryptojs-mode-ctr.min.js", "utf8");
+// 	const eaxContent = fs.readFileSync("./EAX/eax.js", "utf8");
+// }
+// if (typeof(window) === 'undefined') {
+// 	let fs = require("fs");
+// 	let CryptoJS = require('crypto-js/core');
+// 	require('cryptojs-extension/build_node/eax.js');
+// }
 
 let emptyString = "";
 let maxMessageSize = 64*1024*1024;
@@ -43,6 +49,7 @@ class MsgHeader {
 			arg: {}
 		};
 		this._isEnc = false; // whether encrypt
+		this.isDealFlag = false;
 		this.err = "";
 		this.packet = [];
 		this.send_nonce = send_nonce;
@@ -173,20 +180,33 @@ class MsgHeader {
      *  @param {uint8Msg}  Data to be encrypted
      */
 	cryptoData(uint8Msg) {
-		if (typeof(window) === 'undefined') {
-			eval(aesContent);
-		    eval(ctrContent);
-		    eval(eaxContent);
-		}
-	    let keyBytes = CryptoJS.enc.Hex.parse(this.vec.key),
+		let et;
+		if (typeof(window) === 'undefined') { // server
+			let fs = require("fs");
+			let CryptoJS = require('crypto-js/core');
+			require('cryptojs-extension/build_node/eax.js');
+
+			let keyBytes = CryptoJS.enc.Hex.parse(this.vec.key),
 	    	nonceBytes = CryptoJS.enc.Hex.parse(this.vec.nonce),
 	    	headerBytes = CryptoJS.enc.Hex.parse(this.vec.header);
-	    // let msgBytes = CryptoJS.lib.WordArray.create(uint8Msg);
-	    let msgBytes = this.convertUint8ArrayToWordArray(uint8Msg);
-	    let eax = CryptoJS.EAX.create(keyBytes);
-	    eax.prepareEncryption(nonceBytes, [headerBytes]);
-	    eax.update(msgBytes);
-	    let et = eax.finalize();
+		    // let msgBytes = CryptoJS.lib.WordArray.create(uint8Msg);
+		    let msgBytes = this.convertUint8ArrayToWordArray(uint8Msg);
+		    let eax = CryptoJS.EAX.create(keyBytes);
+		    eax.prepareEncryption(nonceBytes, [headerBytes]);
+		    eax.update(msgBytes);
+		    et = eax.finalize();
+		} else {  // client
+			let keyBytes = CryptoJS.enc.Hex.parse(this.vec.key),
+	    	nonceBytes = CryptoJS.enc.Hex.parse(this.vec.nonce),
+	    	headerBytes = CryptoJS.enc.Hex.parse(this.vec.header);
+		    // let msgBytes = CryptoJS.lib.WordArray.create(uint8Msg);
+		    let msgBytes = this.convertUint8ArrayToWordArray(uint8Msg);
+		    let eax = CryptoJS.EAX.create(keyBytes);
+		    eax.prepareEncryption(nonceBytes, [headerBytes]);
+		    eax.update(msgBytes);
+		    et = eax.finalize();
+		}
+	    
 	    return et;
 	}
 	/**
@@ -195,12 +215,26 @@ class MsgHeader {
      *  @param {uint8Msg}  Data to be encrypted
      */
 	decryptData(et) {
-		let keyBytes = CryptoJS.enc.Hex.parse(this.vec.key),
+		let pt;
+		if (typeof(window) === 'undefined') {
+			let fs = require("fs");
+			let CryptoJS = require('crypto-js/core');
+			require('cryptojs-extension/build_node/eax.js');
+
+			let keyBytes = CryptoJS.enc.Hex.parse(this.vec.key),
+				nonceBytes = CryptoJS.enc.Hex.parse(this.vec.nonce),
+				headerBytes = CryptoJS.enc.Hex.parse(this.vec.header);
+			let eax = CryptoJS.EAX.create(keyBytes);
+			let etData = this.convertUint8ArrayToWordArray(et);
+			pt = eax.decrypt(etData, nonceBytes, [headerBytes]);
+		} else {
+			let keyBytes = CryptoJS.enc.Hex.parse(this.vec.key),
 			nonceBytes = CryptoJS.enc.Hex.parse(this.vec.nonce),
 			headerBytes = CryptoJS.enc.Hex.parse(this.vec.header);
-		let eax = CryptoJS.EAX.create(keyBytes);
-		let etData = this.convertUint8ArrayToWordArray(et);
-		let pt = eax.decrypt(etData, nonceBytes, [headerBytes]);
+			let eax = CryptoJS.EAX.create(keyBytes);
+			let etData = this.convertUint8ArrayToWordArray(et);
+			pt = eax.decrypt(etData, nonceBytes, [headerBytes]);
+		}
 		return pt;
 	}
 	convertWordArrayToUint8Array(wordArray) {
@@ -225,7 +259,8 @@ class MsgHeader {
 			words.push(
 				(u8Array[i++] << 24) |
 				(u8Array[i++] << 16) |
-				(u8Array[i++] << 8)  |
+				(u8Array
+					[i++] << 8)  |
 				(u8Array[i++])
 			);
 		}
@@ -321,8 +356,6 @@ class MsgHeader {
 		this.cli._setParameter(this.cli, g, N, N.length * 4); //N is string type rather than byte, so it multiply 4
 		this.cli.setSalt(s);  // 设置cli的salt
 		this.cli.setB(B); 
-		// let v = this.cli.computeV();
-		// console.log("V", commonFun.bytes2Str(v).toUpperCase())
 		// let a = "60975527035CF2AD1989806F0407210BC81EDC04E2762A56AFD529DDDA2D4393";
 		// let A = this.cli._setA(a)   // cli设置a
 		let A = this.cli.generateA();
@@ -346,6 +379,7 @@ class MsgHeader {
 		let M2_min = this.cli.computeM2(this.cli);
 		let M2_mine = new Uint8Array(M2_min);
 		if (M2.toString() != M2_mine.toString()) {
+			this._isEnc = false;
 			this.err = "srp6a M2 not equal";
 			return;
 		}
@@ -393,30 +427,36 @@ class MsgHeader {
 			tempArr.set(data, 8);
 			uint8Arr = tempArr;
 		}
-		[q.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
-
+		[q.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);	
+		
+		if (q.txid == 0) {
+			return [q, undefined];
+		}
 		this._messageHeader.type = 'A';
 		let a = Object.assign(this._answer, this._messageHeader);
-		a.txid = q.txid
+		a.txid = q.txid;
+
 		let content = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
 		let repeateFlag = this.isAlreadReceive(content);
-		if (repeateFlag) {
+		if (repeateFlag && this.isDealFlag) {
 			a.status = 1;
-			this.packUnormalAnswerArg(a,"exname",1001,"tag","message","raiser",this.err);
-			return this.packAnswer(a);
+			this.packUnormalAnswerArg(a,"exname",1001+q.txid,"tag","message","raiser",this.err);
+			return [q, this.packAnswer(a)];
 		}
 
 		[q.service, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-		[q.method, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
+		[q.method, po
+		s] = vbsDecode.decodeVBS(uint8Arr, pos);
 		[q.ctx, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		[q.args, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		
 		if (8+len == pos) { // Decode Right
-			this.receiveDataList[q.txid] =  content// Record receive data list
-			if (q.txid == 0) {
-				return;
+			if (this.receiveList.indexOf(q.txid) == -1) {
+				console.log(this.receiveList, q.txid);
+				this.receiveDataList[q.txid] =  content// Record receive data list
+				this.receiveList[this.receiveList.length] = q.txid;
 			}
-			this.receiveList[this.receiveList.length] = q.txid; 
+			this.isDealFlag = true;
 			let msg = this.packAnswerBody(a);
 			return [q, this.packAnswer(msg)];
 		} else {
@@ -531,8 +571,7 @@ class MsgHeader {
 			tempArr.set(data, 8);
 			uint8Arr = tempArr;
 		}
-		let content;
-		content  = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
+		let content  = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
 		let repeateFlag = this.isAlreadReceive(content);
 		if (repeateFlag) {
 			console.error(this.err);
@@ -550,8 +589,7 @@ class MsgHeader {
 		} else {
 			this.err = "Decode message error, the length of encode byte dissatisfy VBS Requirement!";
 			return this.err;
-		}
-		
+		}		
 	}
 	/**
      *  @dev decodeHeader
@@ -563,7 +601,7 @@ class MsgHeader {
 		this.err = emptyString; // clear the error which is alread throw
 		if (uint8Arr == undefined || uint8Arr.length < 8) {
 			this.err = "The length of message is less than 8 bytes !";
-			return this.err;
+			throw new Error(this.err);
 		}
 		let msg;
 		if (uint8Arr.length > 16 && uint8Arr[9] != 0x58 && uint8Arr[11] == 0x01) {
@@ -597,11 +635,12 @@ class MsgHeader {
 		if (type == 'H' || type == 'B') {
 			if (uint8Arr[3] != 0 || uint8Arr[4] != 0) {
 				this.err = "Invalid Hello or Bye message";
-				return this.err;
+				throw new Error(this.err);;
 			}
 		}
 		switch (type) {
 			case 'H': 
+				this._messageHeader.flags = uint8Arr[4];
 		    	msg = Object.assign(this._messageHeader, {type:'H'});
 		    	break;
 		    case 'B':

@@ -4,7 +4,7 @@ let aesContent = fs.readFileSync("./cryptojs-aes.min.js", "utf8");
 let ctrContent = fs.readFileSync("./cryptojs-mode-ctr.min.js", "utf8");
 let eaxContent = fs.readFileSync("./eax.js", "utf8");
 console.time("sort");
-test2();
+// test2();
 console.timeEnd("sort");
 function test2() {
     eval(aesContent);

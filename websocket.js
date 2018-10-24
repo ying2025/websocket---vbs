@@ -76,7 +76,7 @@ function ClientSocket() {
 		that.ws.onclose = function(evt) {	
 			that.readyState = that.connectStatus.closed;
 			callback(that.readyState);
-			console.log(that.readyState, "connection closed!", evt);
+			console.log("connection closed!", evt);
 			// Abnormal closure, auto reconnect to server if it is 
 			if (that.lockReconnect && that.reconnectionAttempted == 0) {
 				if (that.ws.readyState == that.ws.CLOSED) { 
@@ -214,7 +214,7 @@ function ClientSocket() {
 				return true;
 			} 
 			that.sendDataList.filter((v, j) => {
-				if (that.sendList.indexOf(j) != -1) {
+				if (that.sendList.indexOf(j+1) != -1) {  // txid start from 1 
 					if (that.ws.readyState == 1) {
 						that.readyState = 2;
 						if (that.sendList.length == 0 || m > (that.maxAttempTimes * that.sendList.length)) {
@@ -245,7 +245,7 @@ function ClientSocket() {
 					m++;
 				}
 			});	
-		}, 5000);
+		}, 1000);
 		if (that.sendList.length == 0) {
 			return true;
 		} else {
@@ -259,7 +259,7 @@ function ClientSocket() {
      */
 	async function waitSend(v) {
 	  that.ws.send(v);
-	  await _sleep(2000);
+	  await _sleep(1000);
 	}
 	/**
      *  @dev _sleep
@@ -275,6 +275,7 @@ function ClientSocket() {
      *	@param {data}  blob data receiving from server
      *  return Uint8Array
      */
+     
     function _readerBlob(data) {
 		let tempData;
 		return new Promise( function(resolve, reject) {
