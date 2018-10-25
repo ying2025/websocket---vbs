@@ -197,12 +197,10 @@ function ClientSocket() {
      *  or send the undeal message to server
      */
      function _graceClose() {
-		let len = that.sendList.length;
-		let recLen = that.msgHead.receiveList.length;
-		while(recLen != 0) {
+		while(that.msgHead.receiveList.length != 0) {
 			console.log("Waiting to receive txid list", that.msgHead.receiveList);
 		}
-		if (len == 0) {
+		if (that.sendList.length == 0) {
 			that.lockReconnect = false;
 			return true;
 		}
@@ -211,6 +209,7 @@ function ClientSocket() {
 		let resendTimer = setInterval(() => {
 			if (that.sendList.length == 0) {
 				clearInterval(resendTimer);
+				that.ws.close();
 				return true;
 			} 
 			that.sendDataList.filter((v, j) => {
@@ -219,11 +218,18 @@ function ClientSocket() {
 						that.readyState = 2;
 						if (that.sendList.length == 0 || m > (that.maxAttempTimes * that.sendList.length)) {
 							clearInterval(resendTimer);
+							that.sendList.length = 0;
 							return true;
 						}
 						console.time("test");
 						// that.ws.send(v[j]);
-						waitSend(v[j]);
+						waitSend(v[j+1]).then(() => {
+							if (that.sendList.length == 0) {
+							 	return;
+							 }
+						}).catch((e) => {
+							console.error(e);
+						});
 						console.timeEnd("test");
 					} else {
 						that.connect(that.url ,(readyState) => { // try to connect ws_server
@@ -260,6 +266,13 @@ function ClientSocket() {
 	async function waitSend(v) {
 	  that.ws.send(v);
 	  await _sleep(1000);
+	}
+	/**
+     *  @dev wait
+     *  Fun: wait for 3 s
+     */
+	async function wait(time) {
+	  await _sleep(time);
 	}
 	/**
      *  @dev _sleep

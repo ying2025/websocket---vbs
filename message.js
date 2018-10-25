@@ -116,9 +116,7 @@ class MsgHeader {
      *                   else header(8 bytes) + message(Plaintext)
      */
 	packQuest(txid, service, method, ctx, args) {
-		let q = this._quest;
-		q.txid = txid;
-		if (q.txid < 0) {
+		if (txid < 0) {
 			this.err = "txid not set yet";
 			return this.err;
 		}
@@ -261,7 +259,7 @@ class MsgHeader {
      */
 	unpackCheck(uint8Arr) {
 		this._messageHeader.type = 'C';
-		let c = Object.assign(this._check, this._messageHeader);
+		let c = Object.assign(commonFun.deepClone(this._check), this._messageHeader);
 		let pos = 0;
 		[c.cmd, pos] = vbsDecode.decodeVBS(uint8Arr, 8);		
 		[c.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
@@ -395,11 +393,11 @@ class MsgHeader {
      */
 	unpackQuest(uint8Arr) {
 		this._messageHeader.type = 'Q';
-		let q = Object.assign(this._quest, this._messageHeader);
-
+		let q = Object.assign(commonFun.deepClone(this._quest), this._messageHeader);
+		let enc = uint8Arr[3];
 		let len = ((uint8Arr[4] & 0xFF) << 24) + ((uint8Arr[5] & 0xFF) << 16) + ((uint8Arr[6] & 0xFF) << 8) + (uint8Arr[7] & 0xFF);
 		let pos = 0;
-		if (this._isEnc) {
+		if (this._isEnc || (enc == 0x01)) {
 			let pt = this.decryptData(new Uint8Array(uint8Arr.buffer, 16, uint8Arr.length - 8));
 			if (pt == false) {
 				this.err = "Decrypt data Error !";
@@ -419,7 +417,7 @@ class MsgHeader {
 			return [q, undefined];
 		}
 		this._messageHeader.type = 'A';
-		let a = Object.assign(this._answer, this._messageHeader);
+		let a = Object.assign(commonFun.deepClone(this._answer), this._messageHeader);
 		a.txid = q.txid;
 
 		let content = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
@@ -434,7 +432,6 @@ class MsgHeader {
 		[q.method, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		[q.ctx, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		[q.args, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-		
 		if (8+len == pos) { // Decode Right
 			if (this.receiveList.indexOf(q.txid) == -1) {
 				this.receiveDataList[q.txid] =  content// Record receive data list
@@ -471,9 +468,10 @@ class MsgHeader {
 	packAnswerBody(a) {
 		if (this.err != emptyString) {
 			a.status = 1;
-			this.packUnormalAnswerArg(a,"exname",1001,"tag","message","raiser",this.err);
+			this.packUnormalAnswerArg(a,"exname",1001,"tag","Expect answer","raiser",this.err);
 		} else {
 			a.status = 0;
+			a.args = {};
 			a.args["first"] = "this is server1 reply";
 			a.args["second"] = "this is server1 reply2";
 		}
@@ -499,7 +497,7 @@ class MsgHeader {
 		u8a.set(new Uint8Array(newTxid), 0); 
     	u8a.set(new Uint8Array(newStatus), newTxid.byteLength);
 		u8a.set(new Uint8Array(newArg), newTxid.byteLength+newStatus.byteLength);
-
+		
 		let msg;
 		if (this._isEnc) {
 			let nonNum = vbsEncode.encodeVBS(this.send_nonce);
@@ -509,7 +507,7 @@ class MsgHeader {
 			msg = new Uint8Array(ct.byteLength + 16);	
 			msg.set(new Uint8Array(nonNum), 0);
 			msg.set(this.packet, 8);
-			msg.set(ct, 16);	
+			msg.set(ct, 16);
 		} else {
 			msg = new Uint8Array(u8a.byteLength + 8);
 			msg.set(this.packet, 0);
@@ -538,11 +536,11 @@ class MsgHeader {
 	unpackAnswer(uint8Arr) {
 		// Normal
 		this._messageHeader.type = 'A';
-		let a = Object.assign(this._answer, this._messageHeader);
-
+		let a = Object.assign(commonFun.deepClone(this._answer), this._messageHeader);
+		let enc = uint8Arr[3];
 		let len = ((uint8Arr[4] & 0xFF) << 24) + ((uint8Arr[5] & 0xFF) << 16) + ((uint8Arr[6] & 0xFF) << 8) + (uint8Arr[7] & 0xFF);
 		let pos = 0;
-		if (this._isEnc) {
+		if (this._isEnc || (enc == 0x01)) {
 			let pt = this.decryptData(new Uint8Array(uint8Arr.buffer, 16, uint8Arr.length - 8));
 			if (pt == false) {
 				this.err = "Decrypt data Error !";
@@ -555,16 +553,15 @@ class MsgHeader {
 			tempArr.set(data, 8);
 			uint8Arr = tempArr;
 		}
+		[a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
 		let content  = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
 		let repeateFlag = this.isAlreadReceive(content);
 		if (repeateFlag) {
 			console.error(this.err);
+			this.receiveList = this.receiveList.filter(v => v!= a.txid);
 			return this.err;
 		}
-		[a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
-
 		[a.status, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-
 		[a.args, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		
 		this.receiveDataList[a.txid] =  content;// Record receive data list
@@ -601,6 +598,7 @@ class MsgHeader {
 		    		break;
 			    case 'A':
 			    	msg = this.unpackAnswer(data);
+			    	// console.log("A", msg)
 			    	break;
 			    default: 
 			    	this.err = "Unknown message type" + type;

@@ -1213,7 +1213,30 @@ function judgeIsBasicType(obj) {
     }
     return isBasic;
 }
-
+// 深度拷贝
+function deepClone(obj) {
+  // 先检测是不是数组和Object
+  // let isArr = Object.prototype.toString.call(obj) === '[object Array]';
+  let isArr = Array.isArray(obj);
+  let isJson = Object.prototype.toString.call(obj) === '[object Object]';
+  if (isArr) {
+    // 克隆数组
+    let newObj = [];
+    for (let i = 0; i < obj.length; i++) {
+      newObj[i] = deepClone(obj[i]);
+    }
+    return newObj;
+  } else if (isJson) {
+    // 克隆Object
+    let newObj = {};
+    for (let i in obj) {
+      newObj[i] = deepClone(obj[i]);
+    }
+    return newObj;
+  }
+  // 不是引用类型直接返回
+  return obj;
+};
 //十六进制字符串转字节数组  
 function strHex2Bytes(str) {  
     var pos = 0; 
@@ -1240,7 +1263,8 @@ module.exports = {
     abToString,
     judgeIsBasicType,
     strHex2Bytes,
-    bytes2Str
+    bytes2Str,
+    deepClone
 }
 
 },{}],9:[function(require,module,exports){
@@ -1248,20 +1272,6 @@ const vbsEncode = require('./VBS/encode.js');
 const vbsDecode = require('./VBS/decode.js');
 const commonFun = require('./commonFun.js');
 const srp6aClient = require('./srp6a/SRP6a.js').NewClient;
-// const srp6aServer = require('./srp6a/SRP6a.js').NewServer;
-// const srp6aClient = require('./srp6a/SRP6a.js');
-let aesContent, ctrContent, eaxContent;
-// if (typeof(window) === 'undefined') {
-// 	const fs = require("fs");
-// 	const aesContent = fs.readFileSync("./EAX/cryptojs-aes.min.js", "utf8");
-// 	const ctrContent = fs.readFileSync("./EAX/cryptojs-mode-ctr.min.js", "utf8");
-// 	const eaxContent = fs.readFileSync("./EAX/eax.js", "utf8");
-// }
-// if (typeof(window) === 'undefined') {
-// 	let fs = require("fs");
-// 	let CryptoJS = require('crypto-js/core');
-// 	require('cryptojs-extension/build_node/eax.js');
-// }
 
 let emptyString = "";
 let maxMessageSize = 64*1024*1024;
@@ -1376,9 +1386,7 @@ class MsgHeader {
      *                   else header(8 bytes) + message(Plaintext)
      */
 	packQuest(txid, service, method, ctx, args) {
-		let q = this._quest;
-		q.txid = txid;
-		if (q.txid < 0) {
+		if (txid < 0) {
 			this.err = "txid not set yet";
 			return this.err;
 		}
@@ -1521,7 +1529,7 @@ class MsgHeader {
      */
 	unpackCheck(uint8Arr) {
 		this._messageHeader.type = 'C';
-		let c = Object.assign(this._check, this._messageHeader);
+		let c = Object.assign(commonFun.deepClone(this._check), this._messageHeader);
 		let pos = 0;
 		[c.cmd, pos] = vbsDecode.decodeVBS(uint8Arr, 8);		
 		[c.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
@@ -1602,8 +1610,6 @@ class MsgHeader {
 		this.cli._setParameter(this.cli, g, N, N.length * 4); //N is string type rather than byte, so it multiply 4
 		this.cli.setSalt(s);  // 设置cli的salt
 		this.cli.setB(B); 
-		// let v = this.cli.computeV();
-		// console.log("V", commonFun.bytes2Str(v).toUpperCase())
 		// let a = "60975527035CF2AD1989806F0407210BC81EDC04E2762A56AFD529DDDA2D4393";
 		// let A = this.cli._setA(a)   // cli设置a
 		let A = this.cli.generateA();
@@ -1615,7 +1621,6 @@ class MsgHeader {
 		let A1 = commonFun.bytes2Str(A);
 		let M11 = commonFun.bytes2Str(M1);
 		let arg = {"A":A1, "M1":M11};	
-		// console.error(new srp6aServer(g, N, N.length * 4, hash));
 		return this.packCheck(command, arg);
 	}
 	/**
@@ -1658,11 +1663,11 @@ class MsgHeader {
      */
 	unpackQuest(uint8Arr) {
 		this._messageHeader.type = 'Q';
-		let q = Object.assign(this._quest, this._messageHeader);
-
+		let q = Object.assign(commonFun.deepClone(this._quest), this._messageHeader);
+		let enc = uint8Arr[3];
 		let len = ((uint8Arr[4] & 0xFF) << 24) + ((uint8Arr[5] & 0xFF) << 16) + ((uint8Arr[6] & 0xFF) << 8) + (uint8Arr[7] & 0xFF);
 		let pos = 0;
-		if (this._isEnc) {
+		if (this._isEnc || (enc == 0x01)) {
 			let pt = this.decryptData(new Uint8Array(uint8Arr.buffer, 16, uint8Arr.length - 8));
 			if (pt == false) {
 				this.err = "Decrypt data Error !";
@@ -1682,7 +1687,7 @@ class MsgHeader {
 			return [q, undefined];
 		}
 		this._messageHeader.type = 'A';
-		let a = Object.assign(this._answer, this._messageHeader);
+		let a = Object.assign(commonFun.deepClone(this._answer), this._messageHeader);
 		a.txid = q.txid;
 
 		let content = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
@@ -1697,10 +1702,8 @@ class MsgHeader {
 		[q.method, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		[q.ctx, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		[q.args, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-		
 		if (8+len == pos) { // Decode Right
-			if (this.receiveList.indexof(q.txid) == -1) {
-				console.log(this.receiveList, q.txid);
+			if (this.receiveList.indexOf(q.txid) == -1) {
 				this.receiveDataList[q.txid] =  content// Record receive data list
 				this.receiveList[this.receiveList.length] = q.txid;
 			}
@@ -1735,9 +1738,10 @@ class MsgHeader {
 	packAnswerBody(a) {
 		if (this.err != emptyString) {
 			a.status = 1;
-			this.packUnormalAnswerArg(a,"exname",1001,"tag","message","raiser",this.err);
+			this.packUnormalAnswerArg(a,"exname",1001,"tag","Expect answer","raiser",this.err);
 		} else {
 			a.status = 0;
+			a.args = {};
 			a.args["first"] = "this is server1 reply";
 			a.args["second"] = "this is server1 reply2";
 		}
@@ -1763,7 +1767,7 @@ class MsgHeader {
 		u8a.set(new Uint8Array(newTxid), 0); 
     	u8a.set(new Uint8Array(newStatus), newTxid.byteLength);
 		u8a.set(new Uint8Array(newArg), newTxid.byteLength+newStatus.byteLength);
-
+		
 		let msg;
 		if (this._isEnc) {
 			let nonNum = vbsEncode.encodeVBS(this.send_nonce);
@@ -1773,7 +1777,7 @@ class MsgHeader {
 			msg = new Uint8Array(ct.byteLength + 16);	
 			msg.set(new Uint8Array(nonNum), 0);
 			msg.set(this.packet, 8);
-			msg.set(ct, 16);	
+			msg.set(ct, 16);
 		} else {
 			msg = new Uint8Array(u8a.byteLength + 8);
 			msg.set(this.packet, 0);
@@ -1802,11 +1806,11 @@ class MsgHeader {
 	unpackAnswer(uint8Arr) {
 		// Normal
 		this._messageHeader.type = 'A';
-		let a = Object.assign(this._answer, this._messageHeader);
-
+		let a = Object.assign(commonFun.deepClone(this._answer), this._messageHeader);
+		let enc = uint8Arr[3];
 		let len = ((uint8Arr[4] & 0xFF) << 24) + ((uint8Arr[5] & 0xFF) << 16) + ((uint8Arr[6] & 0xFF) << 8) + (uint8Arr[7] & 0xFF);
 		let pos = 0;
-		if (this._isEnc) {
+		if (this._isEnc || (enc == 0x01)) {
 			let pt = this.decryptData(new Uint8Array(uint8Arr.buffer, 16, uint8Arr.length - 8));
 			if (pt == false) {
 				this.err = "Decrypt data Error !";
@@ -1819,16 +1823,15 @@ class MsgHeader {
 			tempArr.set(data, 8);
 			uint8Arr = tempArr;
 		}
+		[a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
 		let content  = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
 		let repeateFlag = this.isAlreadReceive(content);
 		if (repeateFlag) {
 			console.error(this.err);
+			this.receiveList = this.receiveList.filter(v => v!= a.txid);
 			return this.err;
 		}
-		[a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
-
 		[a.status, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-
 		[a.args, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		
 		this.receiveDataList[a.txid] =  content;// Record receive data list
@@ -1865,6 +1868,7 @@ class MsgHeader {
 		    		break;
 			    case 'A':
 			    	msg = this.unpackAnswer(data);
+			    	// console.log("A", msg)
 			    	break;
 			    default: 
 			    	this.err = "Unknown message type" + type;
@@ -11554,12 +11558,10 @@ function ClientSocket() {
      *  or send the undeal message to server
      */
      function _graceClose() {
-		let len = that.sendList.length;
-		let recLen = that.msgHead.receiveList.length;
-		while(recLen != 0) {
+		while(that.msgHead.receiveList.length != 0) {
 			console.log("Waiting to receive txid list", that.msgHead.receiveList);
 		}
-		if (len == 0) {
+		if (that.sendList.length == 0) {
 			that.lockReconnect = false;
 			return true;
 		}
@@ -11568,6 +11570,7 @@ function ClientSocket() {
 		let resendTimer = setInterval(() => {
 			if (that.sendList.length == 0) {
 				clearInterval(resendTimer);
+				that.ws.close();
 				return true;
 			} 
 			that.sendDataList.filter((v, j) => {
@@ -11576,11 +11579,18 @@ function ClientSocket() {
 						that.readyState = 2;
 						if (that.sendList.length == 0 || m > (that.maxAttempTimes * that.sendList.length)) {
 							clearInterval(resendTimer);
+							that.sendList.length = 0;
 							return true;
 						}
 						console.time("test");
 						// that.ws.send(v[j]);
-						waitSend(v[j]);
+						waitSend(v[j+1]).then(() => {
+							if (that.sendList.length == 0) {
+							 	return;
+							 }
+						}).catch((e) => {
+							console.error(e);
+						});
 						console.timeEnd("test");
 					} else {
 						that.connect(that.url ,(readyState) => { // try to connect ws_server
@@ -11619,6 +11629,13 @@ function ClientSocket() {
 	  await _sleep(1000);
 	}
 	/**
+     *  @dev wait
+     *  Fun: wait for 3 s
+     */
+	async function wait(time) {
+	  await _sleep(time);
+	}
+	/**
      *  @dev _sleep
      *  Fun: time _sleep
      *  return time
@@ -11632,6 +11649,7 @@ function ClientSocket() {
      *	@param {data}  blob data receiving from server
      *  return Uint8Array
      */
+     
     function _readerBlob(data) {
 		let tempData;
 		return new Promise( function(resolve, reject) {

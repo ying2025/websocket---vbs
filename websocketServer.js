@@ -26,6 +26,7 @@ class ServerSocket {
              canSendHel: false,  // Pass SRP6a verify
              txid: 1,
              send_nonce: 1,
+             receiveMsgCounter: 0,
              key: [],
              nonce: "22E7ADD93CFC6393C57EC0B3C17D6B44",
              header: "126735FCC320D25A",
@@ -55,7 +56,7 @@ class ServerSocket {
                 this.sayHello(ws, msgHead);
                 ws.on('message', function incoming(data) {
                     try {
-                        let msg = dealRequest(msgHead, ws, data);
+                         dealRequest(msgHead, ws, data);
                         // console.log("Receive message from client", msg);
                     } catch(e) {
                         console.error(e);
@@ -71,8 +72,7 @@ class ServerSocket {
             wss.on('listening', () => {
               console.log("Begin listen")
             });
-          });
-          
+          });        
     }
     /**
      *  @dev sayHello
@@ -89,9 +89,10 @@ class ServerSocket {
        } else {
           greetByte = msgHeader.packMsg('H');
        }
-       let err = ws.send(greetByte);
-       if (err != emptyString && err != undefined) {
-          throw new Error("Send failed");
+       try {
+          ws.send(greetByte);
+       } catch(e) {
+          throw new Error(e);
        }
     }
     /**
@@ -121,15 +122,18 @@ class ServerSocket {
  */
 function dealRequest(msgHead, ws, bufferData) {
     let err;
+    let serverFunc = new ServerFunc(ws, msgHead);
+
     if (ws.closeFlag == true) {
-        let suc = close(ws);
-        if (suc) {
-          ws.closeFlag = false;
-          ws.rejectReqFlag = false;
-          return;
+        if (ws.unDealReplyList.length == 0) {
+            let suc = serverFunc.close();
+            if (suc) {
+                ws.closeFlag = false;
+                ws.rejectReqFlag = false;
+                return;
+            }
         }
     }
-    let serverFunc = new ServerFunc(ws, msgHead);
     let bufData = new Uint8Array(bufferData);
     let header;
     if (bufData.length > 16 && bufData[8] == 0x58 && bufData[11] == 0x01) {  // encrypt
@@ -153,6 +157,9 @@ function dealRequest(msgHead, ws, bufferData) {
     if (serverFunc.isRepeatData(bufData)) {
        return;
     }
+    if (ws.rejectReqFlag) {  // reject new request if already receive Bay.
+        return;
+    }
     resolveRequest(header, bufData, ws, msgHead, serverFunc);
 } 
 /**
@@ -166,7 +173,7 @@ function dealRequest(msgHead, ws, bufferData) {
  *  @param {msgHead}    msgHead Object
  *  @param {serverFunc} serverFunc Object
  */
-function resolveRequest(header, bufData, ws, msgHead, serverFunc){
+function resolveRequest(header, bufData, ws, msgHead, serverFunc) {
     let err;
     let head   = serverFunc.getHeader(header);
     serverFunc.checkHeader(head);
@@ -180,6 +187,11 @@ function resolveRequest(header, bufData, ws, msgHead, serverFunc){
             res = serverFunc.packQuest(serverFunc.isEnc);
             break;
         case 'Q':
+            ws.receiveMsgCounter++;
+            // if (ws.receiveMsgCounter > 3) {
+            //     ws.closeFlag = true;
+            //     ws.rejectReqFlag = true;
+            // }
             res = serverFunc.dealRequest(bufData);
             break;
         case 'C':
@@ -203,16 +215,17 @@ function resolveRequest(header, bufData, ws, msgHead, serverFunc){
             break;
         default:
             err = "ERROR Message";
+            throw new Error(err);
     }
     if (serverFunc.err != emptyString && serverFunc.err != undefined) {
         throw new Error(serverFunc.err);
     }
     if (res != emptyArray && (typeof res != 'undefined') && res != undefined) {
-          err = ws.send(res);
-          if (err != emptyString && err != undefined) {
-             console.error("send failed", err);
-             throw new Error(err);
-          }
+        try {
+            ws.send(res);
+        } catch(e) {
+            throw new Error(e);
+        }
     }
 }
 /**
@@ -229,6 +242,34 @@ class ServerFunc {
         this.messageHeader = msgHeader._messageHeader;
         this.attempTimes   = 0;
         this.sleepTime     = sleepTime;
+    }
+    /**
+     *  @dev close 
+     *  Fun: Server active close connection         
+     */
+    close() {
+        let flag = false;
+        let len = 0,i = 0;
+        while(this.msgHeader.receiveList.length != 0) {
+             len = this.ws.receiveList.length;
+             let bufData = this.ws.receiveDataList[i++]
+             this.msgHeader.unpackQuest(bufData);
+             if (len == 0) {
+                break;
+             }
+        }
+        while(this.ws.sendList.length != 0) {  // wait for reply
+            this.attempTimes++;
+            wait(this.sleepTime);
+            if (this.attempTimes > maxAttempTimes) {
+              break;  // force close after attempt three times
+            }
+        }
+        flag = (this.ws.receiveList.length == 0) && (this.ws.sendList.length == 0);
+        if (flag) {
+            this.ws.send(this.msgHeader.packMsg('B'));
+        }
+        return flag;
     }
     /**
      *  @dev isRepeatData
