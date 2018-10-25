@@ -29,7 +29,7 @@ Secondly, You must use eax such as following
                   let fs = require("fs");
 		   let CryptoJS = require('crypto-js/core');
 		   require('cryptojs-extension/build_node/eax.js');
-Thirdly, You can debug nodejs as following
+Thirdly, You can debug nodejs as following in browserify
 
 
                   node --inspect websocketServer.js
