@@ -11364,7 +11364,7 @@ const vbsEncode = require('./VBS/encode.js');
 const vbsDecode = require('./VBS/decode.js');
 const  msgHeader  = require('./message.js').MsgHeader;
 let emptyString = "";
-let max_attemp_times = 2;
+let max_attemp_times = 1;
 let WebSocketClient;
 if (typeof WebSocket == "undefined" && !process.env.browser) {
 	WebSocketClient = require("ws");
@@ -11501,7 +11501,7 @@ function ClientSocket() {
 					case 'B':
 						that.lockReconnect = false;
 						that.readyState  = 3;
-						let allowClose = _graceClose();
+						let allowClose = _graceClose(false);
 						let closeMsg;
 			            if (allowClose) {
 			            	that.ws.close();
@@ -11543,7 +11543,7 @@ function ClientSocket() {
             if( that.ws.terminate ) {
                 that.ws.terminate();
             }
-            let allowClose = _graceClose();
+            let allowClose = _graceClose(true);
             if (allowClose) {
             	that.ws.send(that.msgHead.packMsg('B'));
             } else {
@@ -11556,23 +11556,29 @@ function ClientSocket() {
      *  Fun: Gracefully close the connection
      *  Additional describe: If the sequence of the request is empty, close it directly, 
      *  or send the undeal message to server
+     *  @param {flag} true/false represent Active/passivity close
      */
-     function _graceClose() {
+     function _graceClose(flag) {
 		while(that.msgHead.receiveList.length != 0) {
 			console.log("Waiting to receive txid list", that.msgHead.receiveList);
 		}
 		if (that.sendList.length == 0) {
 			that.lockReconnect = false;
 			return true;
+		} else {
+			sleep(5000);
 		}
 		// According the txid sequence to find the data
 		let m = 0; // connect ws_server' times
 		let resendTimer = setInterval(() => {
 			if (that.sendList.length == 0) {
 				clearInterval(resendTimer);
-				that.ws.close();
+				if (flag) {
+					that.ws.close();
+				}
 				return true;
-			} 
+			}
+			let j = 0; 
 			that.sendDataList.filter((v, j) => {
 				if (that.sendList.indexOf(j+1) != -1) {  // txid start from 1 
 					if (that.ws.readyState == 1) {
@@ -11580,17 +11586,14 @@ function ClientSocket() {
 						if (that.sendList.length == 0 || m > (that.maxAttempTimes * that.sendList.length)) {
 							clearInterval(resendTimer);
 							that.sendList.length = 0;
-							return true;
+							if (flag) {
+								that.ws.close();
+							}
+							return;
 						}
-						console.time("test");
-						// that.ws.send(v[j]);
-						waitSend(v[j+1]).then(() => {
-							if (that.sendList.length == 0) {
-							 	return;
-							 }
-						}).catch((e) => {
-							console.error(e);
-						});
+						console.time("test");	
+						that.ws.send(v[j+1]);
+						sleep(5000);
 						console.timeEnd("test");
 					} else {
 						that.connect(that.url ,(readyState) => { // try to connect ws_server
@@ -11621,27 +11624,11 @@ function ClientSocket() {
 		
 	}
 	/**
-     *  @dev waitSend
-     *  Fun: send v and then wait for 3 s
+     *  @dev sleep
+     *  Fun: time sleep
      */
-	async function waitSend(v) {
-	  that.ws.send(v);
-	  await _sleep(1000);
-	}
-	/**
-     *  @dev wait
-     *  Fun: wait for 3 s
-     */
-	async function wait(time) {
-	  await _sleep(time);
-	}
-	/**
-     *  @dev _sleep
-     *  Fun: time _sleep
-     *  return time
-     */
-	function _sleep(ms) {
-	  return new Promise(resolve => setTimeout(resolve, ms));
+	function sleep(time){
+	  for( let temp = Date.now(); Date.now() - temp <= time;);
 	}
 	/**
      *  @dev _readerBlob
