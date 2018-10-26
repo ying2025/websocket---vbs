@@ -397,60 +397,6 @@ class MsgHeader {
      *		   pack answer 
      *  @param {uint8Arr} receive data
      */
-	// unpackQuest(uint8Arr) {
-	// 	this._messageHeader.type = 'Q';
-	// 	let q = Object.assign(commonFun.deepClone(this._quest), this._messageHeader);
-	// 	let enc = uint8Arr[3];
-	// 	let len = ((uint8Arr[4] & 0xFF) << 24) + ((uint8Arr[5] & 0xFF) << 16) + ((uint8Arr[6] & 0xFF) << 8) + (uint8Arr[7] & 0xFF);
-	// 	let pos = 0;
-	// 	if (this._isEnc || (enc == 0x01)) {
-	// 		let pt = this.decryptData(new Uint8Array(uint8Arr.buffer, 16, uint8Arr.length - 8));
-	// 		if (pt == false) {
-	// 			this.err = "Decrypt data Error !";
-	// 			return this.err;
-	// 		}
-	// 		let data = this.convertWordArrayToUint8Array(pt);
-	// 		let header = new Uint8Array(uint8Arr.buffer, 0, 8);
-			
-	// 		let tempArr = new Uint8Array(8 + data.length);
-	// 		tempArr.set(header, 0);
-	// 		tempArr.set(data, 8);
-	// 		uint8Arr = tempArr;
-	// 	}
-	// 	[q.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);	
-		
-	// 	if (q.txid == 0) {
-	// 		return [q, undefined];
-	// 	}
-	// 	this._messageHeader.type = 'A';
-	// 	let a = Object.assign(commonFun.deepClone(this._answer), this._messageHeader);
-	// 	a.txid = q.txid;
-
-	// 	let content = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
-	// 	let repeateFlag = this.isAlreadReceive(content);
-	// 	if (repeateFlag && this.isDealFlag) {
-	// 		a.status = 1;
-	// 		this.packUnormalAnswerArg(a,"exname",1001+q.txid,"tag","message","raiser",this.err);
-	// 		return [q, this.packAnswer(a)];
-	// 	}
-
-	// 	[q.service, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-	// 	[q.method, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-	// 	[q.ctx, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-	// 	[q.args, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-	// 	if (8+len == pos) { // Decode Right
-	// 		if (this.receiveList.indexOf(q.txid) == -1) {
-	// 			this.receiveDataList[q.txid] =  content// Record receive data list
-	// 			this.receiveList[this.receiveList.length] = q.txid;
-	// 		}
-	// 		this.isDealFlag = true;
-	// 		let msg = this.packAnswerBody(a);
-	// 		return [q, this.packAnswer(msg)];
-	// 	} else {
-	// 		this.err = "Decode message error, the length of encode byte dissatisfy VBS Requirement!";
-	// 		return [q, this.err];
-	// 	}
-	// }
 	unpackQuest(uint8Arr) {
 		let enc = uint8Arr[3];
 		let len = ((uint8Arr[4] & 0xFF) << 24) + ((uint8Arr[5] & 0xFF) << 16) + ((uint8Arr[6] & 0xFF) << 8) + (uint8Arr[7] & 0xFF);
