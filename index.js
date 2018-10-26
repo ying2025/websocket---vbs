@@ -1399,10 +1399,6 @@ class MsgHeader {
 		let n1 = newTxid.byteLength + newService.byteLength;
 		let n2 = newMethod.byteLength + newCtx.byteLength;
 		let len = n1 + n2 + newArg.byteLength; 
-		if (this._isEnc) {
-			this._messageHeader.flags = 0x01;
-		}
-		this.fillHeader('Q', len);
 
 		let u8a = new Uint8Array(len);
 		u8a.set(new Uint8Array(newTxid), 0); 
@@ -1410,11 +1406,22 @@ class MsgHeader {
 		u8a.set(new Uint8Array(newMethod), n1);
 		u8a.set(new Uint8Array(newCtx), n1 + newMethod.byteLength);
 		u8a.set(new Uint8Array(newArg), n1 + n2);
-		let msg;
-		let nonNum = vbsEncode.encodeVBS(this.send_nonce);
+		let msgBuffer = this.cryptQuest(u8a);
+		console.log("send data id ", txid);
+		return [u8a, msgBuffer];
+	}
+	cryptQuest(u8a) {
+		let msg;	
+		if (this._isEnc) {
+			this._messageHeader.flags = 0x01;
+		}
+		let len = u8a.length;
+		this.fillHeader('Q', len);
+
 		this.send_nonce += this.noce_increase_step;
 		if (this._isEnc) {
 			let et = this.cryptoData(u8a);
+			let nonNum = vbsEncode.encodeVBS(this.send_nonce);
 			let ct = this.convertWordArrayToUint8Array(et);
 			msg = new Uint8Array(ct.byteLength + 16);	
 			msg.set(new Uint8Array(nonNum), 0);
@@ -1425,7 +1432,6 @@ class MsgHeader {
 			msg.set(this.packet, 0);
 			msg.set(u8a, 8);
 		}
-		console.log("send data id ", txid);
 		return msg.buffer;
 	}
 	/**
@@ -1610,9 +1616,9 @@ class MsgHeader {
 		this.cli._setParameter(this.cli, g, N, N.length * 4); //N is string type rather than byte, so it multiply 4
 		this.cli.setSalt(s);  // 设置cli的salt
 		this.cli.setB(B); 
-		// let a = "60975527035CF2AD1989806F0407210BC81EDC04E2762A56AFD529DDDA2D4393";
-		// let A = this.cli._setA(a)   // cli设置a
-		let A = this.cli.generateA();
+		let a = "60975527035CF2AD1989806F0407210BC81EDC04E2762A56AFD529DDDA2D4393";
+		let A = this.cli._setA(a)   // cli设置a
+		// let A = this.cli.generateA();
 		this.cli.clientComputeS();
 		let M1 = this.cli.computeM1(this.cli);
 		if (this.cli.err != emptyString) {
@@ -1661,12 +1667,63 @@ class MsgHeader {
      *		   pack answer 
      *  @param {uint8Arr} receive data
      */
+	// unpackQuest(uint8Arr) {
+	// 	this._messageHeader.type = 'Q';
+	// 	let q = Object.assign(commonFun.deepClone(this._quest), this._messageHeader);
+	// 	let enc = uint8Arr[3];
+	// 	let len = ((uint8Arr[4] & 0xFF) << 24) + ((uint8Arr[5] & 0xFF) << 16) + ((uint8Arr[6] & 0xFF) << 8) + (uint8Arr[7] & 0xFF);
+	// 	let pos = 0;
+	// 	if (this._isEnc || (enc == 0x01)) {
+	// 		let pt = this.decryptData(new Uint8Array(uint8Arr.buffer, 16, uint8Arr.length - 8));
+	// 		if (pt == false) {
+	// 			this.err = "Decrypt data Error !";
+	// 			return this.err;
+	// 		}
+	// 		let data = this.convertWordArrayToUint8Array(pt);
+	// 		let header = new Uint8Array(uint8Arr.buffer, 0, 8);
+			
+	// 		let tempArr = new Uint8Array(8 + data.length);
+	// 		tempArr.set(header, 0);
+	// 		tempArr.set(data, 8);
+	// 		uint8Arr = tempArr;
+	// 	}
+	// 	[q.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);	
+		
+	// 	if (q.txid == 0) {
+	// 		return [q, undefined];
+	// 	}
+	// 	this._messageHeader.type = 'A';
+	// 	let a = Object.assign(commonFun.deepClone(this._answer), this._messageHeader);
+	// 	a.txid = q.txid;
+
+	// 	let content = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
+	// 	let repeateFlag = this.isAlreadReceive(content);
+	// 	if (repeateFlag && this.isDealFlag) {
+	// 		a.status = 1;
+	// 		this.packUnormalAnswerArg(a,"exname",1001+q.txid,"tag","message","raiser",this.err);
+	// 		return [q, this.packAnswer(a)];
+	// 	}
+
+	// 	[q.service, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
+	// 	[q.method, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
+	// 	[q.ctx, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
+	// 	[q.args, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
+	// 	if (8+len == pos) { // Decode Right
+	// 		if (this.receiveList.indexOf(q.txid) == -1) {
+	// 			this.receiveDataList[q.txid] =  content// Record receive data list
+	// 			this.receiveList[this.receiveList.length] = q.txid;
+	// 		}
+	// 		this.isDealFlag = true;
+	// 		let msg = this.packAnswerBody(a);
+	// 		return [q, this.packAnswer(msg)];
+	// 	} else {
+	// 		this.err = "Decode message error, the length of encode byte dissatisfy VBS Requirement!";
+	// 		return [q, this.err];
+	// 	}
+	// }
 	unpackQuest(uint8Arr) {
-		this._messageHeader.type = 'Q';
-		let q = Object.assign(commonFun.deepClone(this._quest), this._messageHeader);
 		let enc = uint8Arr[3];
 		let len = ((uint8Arr[4] & 0xFF) << 24) + ((uint8Arr[5] & 0xFF) << 16) + ((uint8Arr[6] & 0xFF) << 8) + (uint8Arr[7] & 0xFF);
-		let pos = 0;
 		if (this._isEnc || (enc == 0x01)) {
 			let pt = this.decryptData(new Uint8Array(uint8Arr.buffer, 16, uint8Arr.length - 8));
 			if (pt == false) {
@@ -1681,8 +1738,7 @@ class MsgHeader {
 			tempArr.set(data, 8);
 			uint8Arr = tempArr;
 		}
-		[q.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);	
-		
+		let q = this.decodeQuest(len, uint8Arr);
 		if (q.txid == 0) {
 			return [q, undefined];
 		}
@@ -1692,28 +1748,34 @@ class MsgHeader {
 
 		let content = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
 		let repeateFlag = this.isAlreadReceive(content);
-		if (repeateFlag && this.isDealFlag) {
+		let errFlag = (this.err != emptyString && this.err != undefined);
+		if ((repeateFlag && this.isDealFlag) || errFlag) {
 			a.status = 1;
 			this.packUnormalAnswerArg(a,"exname",1001+q.txid,"tag","message","raiser",this.err);
 			return [q, this.packAnswer(a)];
 		}
 
+		if (this.receiveList.indexOf(q.txid) == -1) {
+			this.receiveDataList[q.txid] =  content// Record receive data list
+			this.receiveList[this.receiveList.length] = q.txid;
+			this.isDealFlag = true;
+		}
+		let msg = this.packAnswerBody(a);
+		return [q, this.packAnswer(msg)];
+	}
+	decodeQuest(len, uint8Arr) {
+		let pos = 0;
+		this._messageHeader.type = 'Q';
+		let q = Object.assign(commonFun.deepClone(this._quest), this._messageHeader);
+		[q.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);	
 		[q.service, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		[q.method, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		[q.ctx, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		[q.args, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-		if (8+len == pos) { // Decode Right
-			if (this.receiveList.indexOf(q.txid) == -1) {
-				this.receiveDataList[q.txid] =  content// Record receive data list
-				this.receiveList[this.receiveList.length] = q.txid;
-			}
-			this.isDealFlag = true;
-			let msg = this.packAnswerBody(a);
-			return [q, this.packAnswer(msg)];
-		} else {
+		if (8+len != pos) { // Decode Right
 			this.err = "Decode message error, the length of encode byte dissatisfy VBS Requirement!";
-			return [q, this.err];
 		}
+		return q;
 	}
 	/**
      *  @dev isAlreadReceive
@@ -1738,10 +1800,11 @@ class MsgHeader {
 	packAnswerBody(a) {
 		if (this.err != emptyString) {
 			a.status = 1;
-			this.packUnormalAnswerArg(a,"exname",1001,"tag","Expect answer","raiser",this.err);
+			this.packUnormalAnswerArg(a,"exname",1001 + a.txid,"tag","Expect answer","raiser",this.err);
 		} else {
 			a.status = 0;
 			a.args = {};
+			a.args["pass"] = "pass txid :" + a.txid; 
 			a.args["first"] = "this is server1 reply";
 			a.args["second"] = "this is server1 reply2";
 		}
@@ -1827,7 +1890,6 @@ class MsgHeader {
 		let content  = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
 		let repeateFlag = this.isAlreadReceive(content);
 		if (repeateFlag) {
-			console.error(this.err);
 			this.receiveList = this.receiveList.filter(v => v!= a.txid);
 			return this.err;
 		}
@@ -11364,14 +11426,14 @@ const vbsEncode = require('./VBS/encode.js');
 const vbsDecode = require('./VBS/decode.js');
 const  msgHeader  = require('./message.js').MsgHeader;
 let emptyString = "";
-let max_attemp_times = 1;
+let max_attemp_times = 3;
 let WebSocketClient;
 if (typeof WebSocket == "undefined" && !process.env.browser) {
 	WebSocketClient = require("ws");
 } else {
 	WebSocketClient = WebSocket;
 }
-
+let webSocketCloseFlag = false;
 function ClientSocket() {
     this.err = "";
     this.sendList = []; // record the request txid sequence that client send to server
@@ -11390,9 +11452,7 @@ function ClientSocket() {
     this.txid = 1;
     this.maxAttempTimes = max_attemp_times; // Attemp reconnect time
 
-    this.lockReconnect = false; 
-    this.reconnectionAttempted = 0;
-    this.reConnectionFlag = false;  // 
+    this.lockReconnect = true; 
 
     let that = this; // ClientSocket
     that.msgHead = new msgHeader();
@@ -11411,15 +11471,22 @@ function ClientSocket() {
     		that.ws = {readState: 3,close:() => {}}; // DISCONNECTED
     		callback("Invalid url : " + ws_server + " closed !");
     	}
-    	that.ws.onopen = function () {	
-    		that.reconnectionAttempted = 0;
-		};
-
 		that.ws.onmessage = function (e) {
 		    let dataMsg = that.getData(e.data).then((data) => {
 		    	console.log('ws onmessage from server: ', data);
 		    	if (data.type !== undefined && data.type == 'H') {
 			    	callback(that.readyState);
+			    	webSocketCloseFlag = false;
+			    	if (that.sendList.length != 0) {
+		    			that.sendDataList.filter((v, j) => {
+							if (that.sendList.indexOf(j+1) != -1) {  // txid start from 1 
+							  that.ws.send(that.msgHead.cryptQuest(v[j+1]));
+							  if (that.sendList.length == 0) {
+							  	  that.ws.close();
+							  }
+							}
+						});
+		    		}
 			    	// Temp test add 
     				// that.ws.send(that.msgHead.packMsg('H'));
 			    }
@@ -11431,25 +11498,24 @@ function ClientSocket() {
 		that.ws.onerror = function(error) {
 			that.readyState = that.connectStatus.closing;
 			console.log("Socket error: ", error);
+			webSocketCloseFlag = true;
 			callback(that.readyState);
 	    };
 
 		that.ws.onclose = function(evt) {	
 			that.readyState = that.connectStatus.closed;
 			callback(that.readyState);
+			webSocketCloseFlag = true;
 			console.log("connection closed!", evt);
-			// Abnormal closure, auto reconnect to server if it is 
-			if (that.lockReconnect && that.reconnectionAttempted == 0) {
-				if (that.ws.readyState == that.ws.CLOSED) { 
-					that.reconnectionAttempted++;
-					that.ws = undefined;
-					setTimeout(() => {
-						that.connect(that.url, () => {});
-						that.lockReconnect = false;
-						console.log("Reconnect start: ", that.reconnectionAttempted);
-					}, Math.floor(Math.random() * 4000));
-				}
-			} 
+			if (that.sendList.length != 0) {
+				that.connect(that.url ,(readyState) => { // try to connect ws_server
+					if (readyState == 2) {
+						that.lockReconnect = true;
+						that.msgHead = new msgHeader();
+					} 
+				});
+
+			}
 		}; 
     }
 	/**
@@ -11471,12 +11537,12 @@ function ClientSocket() {
 			// 	that.err = "Please send message to server later !";
 			// 	return that.err;
 			// }
-			let data = that.msgHead.packQuest(txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
+			let [u8a, data] = that.msgHead.packQuest(txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
 	    	that.ws.send(data);
 	    	if (txid != 0) {
 	    		that.sendList[that.sendList.length] = txid;
 	    	}
-	    	let obj = {[txid]: data};
+	    	let obj = {[txid]: u8a};
     		that.sendDataList.push(obj);
 	    } else {
 	    	that.err = "Please connect to server";
@@ -11499,7 +11565,6 @@ function ClientSocket() {
 						that.readyState  = 2; // Can send message
 						break;
 					case 'B':
-						that.lockReconnect = false;
 						that.readyState  = 3;
 						let allowClose = _graceClose(false);
 						let closeMsg;
@@ -11535,6 +11600,7 @@ function ClientSocket() {
      *  or send the undeal message to server
      */
     ClientSocket.prototype.close = function() {
+    	that.readyState = 3;
 		return new Promise((resolve, reject) => {
 			if (!that.ws) {
                 that.err = "Websocket already cleared !";
@@ -11546,8 +11612,9 @@ function ClientSocket() {
             let allowClose = _graceClose(true);
             if (allowClose) {
             	that.ws.send(that.msgHead.packMsg('B'));
+            	resolve("Close success!");
             } else {
-            	console.log("Waiting !!");
+            	reject("Waiting close!");
             }
 		});
 	}
@@ -11563,11 +11630,9 @@ function ClientSocket() {
 			console.log("Waiting to receive txid list", that.msgHead.receiveList);
 		}
 		if (that.sendList.length == 0) {
-			that.lockReconnect = false;
+			that.lockReconnect = true;
 			return true;
-		} else {
-			sleep(5000);
-		}
+		} 
 		// According the txid sequence to find the data
 		let m = 0; // connect ws_server' times
 		let resendTimer = setInterval(() => {
@@ -11578,37 +11643,34 @@ function ClientSocket() {
 				}
 				return true;
 			}
-			let j = 0; 
 			that.sendDataList.filter((v, j) => {
 				if (that.sendList.indexOf(j+1) != -1) {  // txid start from 1 
 					if (that.ws.readyState == 1) {
 						that.readyState = 2;
-						if (that.sendList.length == 0 || m > (that.maxAttempTimes * that.sendList.length)) {
+						if (that.sendList.length == 0 || m >= that.maxAttempTimes) {
 							clearInterval(resendTimer);
-							that.sendList.length = 0;
 							if (flag) {
 								that.ws.close();
 							}
 							return;
-						}
-						console.time("test");	
-						that.ws.send(v[j+1]);
-						sleep(5000);
-						console.timeEnd("test");
+						}	
+						sleep(1000);
+						console.log("mmmm", m)
 					} else {
 						that.connect(that.url ,(readyState) => { // try to connect ws_server
 							if (readyState == 2) {
-								that.lockReconnect = false;
-								that.reConnectionFlag = true;
+								that.lockReconnect = true;
 								that.msgHead = new msgHeader();
-								clearInterval(resendTimer);
-								that.sendList.length = 0;
-								return true;
-							}
+								that.ws.send(that.msgHead.cryptQuest(v[j+1]));
+								if (that.sendList.length == 0) {
+									clearInterval(resendTimer);
+									return true;
+								}
+							} 
 						});
-						if (m > that.maxAttempTimes || that.ws.readyState == 1) {
+						if (m > that.maxAttempTimes) {
 							clearInterval(resendTimer);
-							that.sendList.length = 0;
+							that.ws.close();
 							return true;
 						}
 					}
@@ -11670,6 +11732,7 @@ if (typeof(window) === 'undefined') {
 	}
 } else {
     window.ClientSocket = ClientSocket;
+    window.webSocketCloseFlag = webSocketCloseFlag;
 }
 
 }).call(this,require('_process'))

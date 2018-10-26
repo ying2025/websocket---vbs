@@ -46,7 +46,7 @@
    	 	let reconnectTime = 0;
 		function connectting() {
 			let ele = document.createElement('div');
-			if (client != undefined && client.readyState == 2) {
+			if (client != undefined && client.ws.readyState == 2) {
 				ele.innerText = '【Server already connect】';
 				document.getElementById('info').appendChild(ele);
 				return;
@@ -73,8 +73,8 @@
 				document.getElementById('info').appendChild(ele);
 			});
 			conServerTime = setTimeout(() => {
-				if (client.reConnectionFlag) {
-					console.log("reConnectionFlag",client.reConnectionFlag)
+				if (client.ws.readyState == 2 && !webSocketCloseFlag) {
+					console.log("reconnect success !")
 					ele.innerText = '【Server is reconnect !】';
 					document.getElementById('info').appendChild(ele);
 					clearTimeout(conServerTime);
@@ -93,7 +93,7 @@
 			let ele = document.createElement('div');
 			let txt = document.getElementById('txt');
 			let value = txt.value;
-			if (client == undefined || client.readyState == 1) {
+			if (client == undefined || client.readyState == 1 || client.ws.readyState == 3) {
 				ele.innerText = "You are not connected to the server, please connect to the server first！";
 	        	document.getElementById('info').appendChild(ele);
 	        	return;
@@ -123,7 +123,17 @@
 			    });
 			    document.getElementById('info').appendChild(ele);
 			}
-	       
+			client.ws.onclose = (e) => {
+				if (!webSocketCloseFlag && client != undefined && client.ws.readyState == 1) {
+					let ele = document.createElement('div');
+		        	ele.innerText = '【Server is in normal service】';
+		        	document.getElementById('info').appendChild(ele);
+		        } else {
+		        	ele.innerText = '【Server is disconnect !】';
+					document.getElementById('info').appendChild(ele);
+					console.log(e);
+		        }
+			}
 		}
 		function ShowTheObject(obj){
 		   let des = "";
@@ -149,7 +159,7 @@
 				ele.innerText = '【Server close connection success !】';
 				document.getElementById('info').appendChild(ele);
 			}).catch((error) => {
-				ele.innerText = '【Server close connection fail, 】' + error;
+				ele.innerText = '【Graceful close: 】' + error;
 				 document.getElementById('info').appendChild(ele);
 			}); 
 	       

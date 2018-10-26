@@ -129,10 +129,6 @@ class MsgHeader {
 		let n1 = newTxid.byteLength + newService.byteLength;
 		let n2 = newMethod.byteLength + newCtx.byteLength;
 		let len = n1 + n2 + newArg.byteLength; 
-		if (this._isEnc) {
-			this._messageHeader.flags = 0x01;
-		}
-		this.fillHeader('Q', len);
 
 		let u8a = new Uint8Array(len);
 		u8a.set(new Uint8Array(newTxid), 0); 
@@ -140,11 +136,22 @@ class MsgHeader {
 		u8a.set(new Uint8Array(newMethod), n1);
 		u8a.set(new Uint8Array(newCtx), n1 + newMethod.byteLength);
 		u8a.set(new Uint8Array(newArg), n1 + n2);
-		let msg;
-		let nonNum = vbsEncode.encodeVBS(this.send_nonce);
+		let msgBuffer = this.cryptQuest(u8a);
+		console.log("send data id ", txid);
+		return [u8a, msgBuffer];
+	}
+	cryptQuest(u8a) {
+		let msg;	
+		if (this._isEnc) {
+			this._messageHeader.flags = 0x01;
+		}
+		let len = u8a.length;
+		this.fillHeader('Q', len);
+
 		this.send_nonce += this.noce_increase_step;
 		if (this._isEnc) {
 			let et = this.cryptoData(u8a);
+			let nonNum = vbsEncode.encodeVBS(this.send_nonce);
 			let ct = this.convertWordArrayToUint8Array(et);
 			msg = new Uint8Array(ct.byteLength + 16);	
 			msg.set(new Uint8Array(nonNum), 0);
@@ -155,7 +162,6 @@ class MsgHeader {
 			msg.set(this.packet, 0);
 			msg.set(u8a, 8);
 		}
-		console.log("send data id ", txid);
 		return msg.buffer;
 	}
 	/**
@@ -340,9 +346,9 @@ class MsgHeader {
 		this.cli._setParameter(this.cli, g, N, N.length * 4); //N is string type rather than byte, so it multiply 4
 		this.cli.setSalt(s);  // 设置cli的salt
 		this.cli.setB(B); 
-		// let a = "60975527035CF2AD1989806F0407210BC81EDC04E2762A56AFD529DDDA2D4393";
-		// let A = this.cli._setA(a)   // cli设置a
-		let A = this.cli.generateA();
+		let a = "60975527035CF2AD1989806F0407210BC81EDC04E2762A56AFD529DDDA2D4393";
+		let A = this.cli._setA(a)   // cli设置a
+		// let A = this.cli.generateA();
 		this.cli.clientComputeS();
 		let M1 = this.cli.computeM1(this.cli);
 		if (this.cli.err != emptyString) {
@@ -391,12 +397,63 @@ class MsgHeader {
      *		   pack answer 
      *  @param {uint8Arr} receive data
      */
+	// unpackQuest(uint8Arr) {
+	// 	this._messageHeader.type = 'Q';
+	// 	let q = Object.assign(commonFun.deepClone(this._quest), this._messageHeader);
+	// 	let enc = uint8Arr[3];
+	// 	let len = ((uint8Arr[4] & 0xFF) << 24) + ((uint8Arr[5] & 0xFF) << 16) + ((uint8Arr[6] & 0xFF) << 8) + (uint8Arr[7] & 0xFF);
+	// 	let pos = 0;
+	// 	if (this._isEnc || (enc == 0x01)) {
+	// 		let pt = this.decryptData(new Uint8Array(uint8Arr.buffer, 16, uint8Arr.length - 8));
+	// 		if (pt == false) {
+	// 			this.err = "Decrypt data Error !";
+	// 			return this.err;
+	// 		}
+	// 		let data = this.convertWordArrayToUint8Array(pt);
+	// 		let header = new Uint8Array(uint8Arr.buffer, 0, 8);
+			
+	// 		let tempArr = new Uint8Array(8 + data.length);
+	// 		tempArr.set(header, 0);
+	// 		tempArr.set(data, 8);
+	// 		uint8Arr = tempArr;
+	// 	}
+	// 	[q.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);	
+		
+	// 	if (q.txid == 0) {
+	// 		return [q, undefined];
+	// 	}
+	// 	this._messageHeader.type = 'A';
+	// 	let a = Object.assign(commonFun.deepClone(this._answer), this._messageHeader);
+	// 	a.txid = q.txid;
+
+	// 	let content = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
+	// 	let repeateFlag = this.isAlreadReceive(content);
+	// 	if (repeateFlag && this.isDealFlag) {
+	// 		a.status = 1;
+	// 		this.packUnormalAnswerArg(a,"exname",1001+q.txid,"tag","message","raiser",this.err);
+	// 		return [q, this.packAnswer(a)];
+	// 	}
+
+	// 	[q.service, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
+	// 	[q.method, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
+	// 	[q.ctx, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
+	// 	[q.args, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
+	// 	if (8+len == pos) { // Decode Right
+	// 		if (this.receiveList.indexOf(q.txid) == -1) {
+	// 			this.receiveDataList[q.txid] =  content// Record receive data list
+	// 			this.receiveList[this.receiveList.length] = q.txid;
+	// 		}
+	// 		this.isDealFlag = true;
+	// 		let msg = this.packAnswerBody(a);
+	// 		return [q, this.packAnswer(msg)];
+	// 	} else {
+	// 		this.err = "Decode message error, the length of encode byte dissatisfy VBS Requirement!";
+	// 		return [q, this.err];
+	// 	}
+	// }
 	unpackQuest(uint8Arr) {
-		this._messageHeader.type = 'Q';
-		let q = Object.assign(commonFun.deepClone(this._quest), this._messageHeader);
 		let enc = uint8Arr[3];
 		let len = ((uint8Arr[4] & 0xFF) << 24) + ((uint8Arr[5] & 0xFF) << 16) + ((uint8Arr[6] & 0xFF) << 8) + (uint8Arr[7] & 0xFF);
-		let pos = 0;
 		if (this._isEnc || (enc == 0x01)) {
 			let pt = this.decryptData(new Uint8Array(uint8Arr.buffer, 16, uint8Arr.length - 8));
 			if (pt == false) {
@@ -411,8 +468,7 @@ class MsgHeader {
 			tempArr.set(data, 8);
 			uint8Arr = tempArr;
 		}
-		[q.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);	
-		
+		let q = this.decodeQuest(len, uint8Arr);
 		if (q.txid == 0) {
 			return [q, undefined];
 		}
@@ -422,28 +478,34 @@ class MsgHeader {
 
 		let content = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
 		let repeateFlag = this.isAlreadReceive(content);
-		if (repeateFlag && this.isDealFlag) {
+		let errFlag = (this.err != emptyString && this.err != undefined);
+		if ((repeateFlag && this.isDealFlag) || errFlag) {
 			a.status = 1;
 			this.packUnormalAnswerArg(a,"exname",1001+q.txid,"tag","message","raiser",this.err);
 			return [q, this.packAnswer(a)];
 		}
 
+		if (this.receiveList.indexOf(q.txid) == -1) {
+			this.receiveDataList[q.txid] =  content// Record receive data list
+			this.receiveList[this.receiveList.length] = q.txid;
+			this.isDealFlag = true;
+		}
+		let msg = this.packAnswerBody(a);
+		return [q, this.packAnswer(msg)];
+	}
+	decodeQuest(len, uint8Arr) {
+		let pos = 0;
+		this._messageHeader.type = 'Q';
+		let q = Object.assign(commonFun.deepClone(this._quest), this._messageHeader);
+		[q.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);	
 		[q.service, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		[q.method, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		[q.ctx, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		[q.args, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-		if (8+len == pos) { // Decode Right
-			if (this.receiveList.indexOf(q.txid) == -1) {
-				this.receiveDataList[q.txid] =  content// Record receive data list
-				this.receiveList[this.receiveList.length] = q.txid;
-			}
-			this.isDealFlag = true;
-			let msg = this.packAnswerBody(a);
-			return [q, this.packAnswer(msg)];
-		} else {
+		if (8+len != pos) { // Decode Right
 			this.err = "Decode message error, the length of encode byte dissatisfy VBS Requirement!";
-			return [q, this.err];
 		}
+		return q;
 	}
 	/**
      *  @dev isAlreadReceive
@@ -468,10 +530,11 @@ class MsgHeader {
 	packAnswerBody(a) {
 		if (this.err != emptyString) {
 			a.status = 1;
-			this.packUnormalAnswerArg(a,"exname",1001,"tag","Expect answer","raiser",this.err);
+			this.packUnormalAnswerArg(a,"exname",1001 + a.txid,"tag","Expect answer","raiser",this.err);
 		} else {
 			a.status = 0;
 			a.args = {};
+			a.args["pass"] = "pass txid :" + a.txid; 
 			a.args["first"] = "this is server1 reply";
 			a.args["second"] = "this is server1 reply2";
 		}
@@ -557,7 +620,6 @@ class MsgHeader {
 		let content  = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
 		let repeateFlag = this.isAlreadReceive(content);
 		if (repeateFlag) {
-			console.error(this.err);
 			this.receiveList = this.receiveList.filter(v => v!= a.txid);
 			return this.err;
 		}

@@ -134,6 +134,7 @@ function dealRequest(msgHead, ws, bufferData) {
             }
         }
     }
+
     let bufData = new Uint8Array(bufferData);
     let header;
     if (bufData.length > 16 && bufData[8] == 0x58 && bufData[11] == 0x01) {  // encrypt
@@ -154,12 +155,10 @@ function dealRequest(msgHead, ws, bufferData) {
           err = "Receive data is error, the length of data is not less than 8 byte!";
           throw new Error(err);
     }
-    if (serverFunc.isRepeatData(bufData)) {
-       return;
-    }
     if (ws.rejectReqFlag) {  // reject new request if already receive Bay.
         return;
     }
+    ws.unDealReplyList[ws.unDealReplyList.length] = bufData;
     resolveRequest(header, bufData, ws, msgHead, serverFunc);
 } 
 /**
@@ -173,7 +172,7 @@ function dealRequest(msgHead, ws, bufferData) {
  *  @param {msgHead}    msgHead Object
  *  @param {serverFunc} serverFunc Object
  */
-function resolveRequest(header, bufData, ws, msgHead, serverFunc) {
+function resolveRequest(header, bufData, ws, msgHead, serverFunc){
     let err;
     let head   = serverFunc.getHeader(header);
     serverFunc.checkHeader(head);
@@ -187,7 +186,7 @@ function resolveRequest(header, bufData, ws, msgHead, serverFunc) {
             res = serverFunc.packQuest(serverFunc.isEnc);
             break;
         case 'Q':
-            ws.receiveMsgCounter++;
+            // ws.receiveMsgCounter++;
             // if (ws.receiveMsgCounter > 3) {
             //     ws.closeFlag = true;
             //     ws.rejectReqFlag = true;
@@ -355,7 +354,7 @@ class ServerFunc {
         let q = Object.assgin(this.msgHeader._quest, {txid: this.ws.txid});
         let ctx = {"sd":344};
         let arg = {"sj":89};
-        let msg = this.msgHeader.packQuest(q.txid, "service","method", ctx, arg);
+        let [data, msg] = this.msgHeader.packQuest(q.txid, "service","method", ctx, arg);
         if (this.msgHeader.err != emptyString && this.msgHeader.err != undefined) {
               throw new Error(this.msgHeader.err);
         }
@@ -447,8 +446,11 @@ class ServerFunc {
             let A   = commonFun.strHex2Bytes(A1);
             let M1  = commonFun.strHex2Bytes(M11);
             this.ws.srv.setA(A);
+            console.log("A", this.ws.srv._A);
             this.ws.srv.serverComputeS();
             let M1_mine = this.ws.srv.computeM1(this.ws.srv);
+            console.log("M1", M1.toString(), Object.prototype.toString.call(M1))
+            console.log("M1_mine", M1_mine.toString(), Object.prototype.toString.call(M1_mine))
             if (M1_mine.toString() == M1.toString()) {
                let M2 = this.ws.srv.computeM2(this.ws.srv);
                this.msgHeader._check.cmd          = "SRP6a4";
