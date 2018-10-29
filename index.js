@@ -11424,12 +11424,16 @@ function ClientSocket() {
 			    	ReconnectFlag = false;
 			    	if (that.sendList.length != 0) {
 			    		console.log(that.sendList)
-			    		// console.log("data list", that.sendDataList);
+			    		console.log("data list", that.sendDataList);
 		    			that.sendDataList.filter((v, j) => {
 		    				console.log("list", v, j);
 							if (that.sendList.indexOf(j+1) != -1) {  // txid start from 1 
-							  console.log("resend data", v[j+1], v[j]);
-							  that.ws.send(that.msgHead.cryptQuest(v[j+1]));
+							  if (typeof v[j+1] != "undefined" && v[j+1] != undefined) { // sendList is disordered
+							  		that.ws.send(that.msgHead.cryptQuest(v[j+1]));
+							  } else {
+							  	    that.ws.send(that.sendDataList[that.sendList.indexOf(j+1)][j+1]);
+							  	  // console.log("rendData list",that.sendList.indexOf(j+1),j, that.sendDataList[that.sendList.indexOf(j+1)][j+1]);
+							  }
 							}
 						});
 		    		}
@@ -11489,6 +11493,11 @@ function ClientSocket() {
 			// }
 			let [u8a, data] = that.msgHead.packQuest(txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
 	    	if (txid != 0) {
+	    		// if (txid == 1) {
+	    		// 	txid = 2;
+	    		// } else if(txid == 2){
+	    		// 	txid = 1;
+	    		// }
 	    		that.sendList[that.sendList.length] = txid;
 	    	}
 	    	let obj = {[txid]: u8a};
@@ -11600,8 +11609,10 @@ function ClientSocket() {
 						if (that.sendList.length == 0 || m >= that.maxAttempTimes) {
 							clearInterval(resendTimer);
 							if (flag) {
+								console.log("flag", flag);
 								that.ws.close();
 							}
+							console.log(22222);
 							return;
 						}	
 						sleep(1000);
