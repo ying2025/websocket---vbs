@@ -1408,6 +1408,7 @@ class MsgHeader {
 		u8a.set(new Uint8Array(newArg), n1 + n2);
 		let msgBuffer = this.cryptQuest(u8a);
 		console.log("send data id ", txid);
+		console.log("send data", u8a);
 		return [u8a, msgBuffer];
 	}
 	cryptQuest(u8a) {
@@ -11379,7 +11380,7 @@ if (typeof WebSocket == "undefined" && !process.env.browser) {
 } else {
 	WebSocketClient = WebSocket;
 }
-let webSocketCloseFlag = false;
+let ReconnectFlag = false;
 function ClientSocket() {
     this.err = "";
     this.sendList = []; // record the request txid sequence that client send to server
@@ -11397,7 +11398,7 @@ function ClientSocket() {
     this.readyState  = 1; 
     this.txid = 1;
     this.maxAttempTimes = max_attemp_times; // Attemp reconnect time
-
+    this.attempTime = 0;
     let that = this; // ClientSocket
     that.msgHead = new msgHeader();
 
@@ -11420,10 +11421,14 @@ function ClientSocket() {
 		    	console.log('ws onmessage from server: ', data);
 		    	if (data.type !== undefined && data.type == 'H') {
 			    	callback(that.readyState);
-			    	webSocketCloseFlag = false;
+			    	ReconnectFlag = false;
 			    	if (that.sendList.length != 0) {
+			    		console.log(that.sendList)
+			    		// console.log("data list", that.sendDataList);
 		    			that.sendDataList.filter((v, j) => {
+		    				console.log("list", v, j);
 							if (that.sendList.indexOf(j+1) != -1) {  // txid start from 1 
+							  console.log("resend data", v[j+1], v[j]);
 							  that.ws.send(that.msgHead.cryptQuest(v[j+1]));
 							}
 						});
@@ -11439,22 +11444,27 @@ function ClientSocket() {
 		that.ws.onerror = function(error) {
 			that.readyState = that.connectStatus.closing;
 			console.log("Socket error: ", error);
-			webSocketCloseFlag = true;
+			ReconnectFlag = true;
 			callback(that.readyState);
 	    };
 
 		that.ws.onclose = function(evt) {	
 			that.readyState = that.connectStatus.closed;
 			callback(that.readyState);
-			webSocketCloseFlag = true;
+			ReconnectFlag = true;
 			console.log("connection closed!", evt);
 			if (that.sendList.length != 0) {
 				that.connect(that.url ,(readyState) => { // try to connect ws_server
 					if (readyState == 2) {
 						that.msgHead = new msgHeader();
 					} 
+					that.attempTime++;
+					if (that.attempTime >= that.maxAttempTimes) {
+						that.attempTime = 0;
+						throw new Error("connection fail");
+						return;
+					}
 				});
-
 			}
 		}; 
     }
@@ -11478,12 +11488,12 @@ function ClientSocket() {
 			// 	return that.err;
 			// }
 			let [u8a, data] = that.msgHead.packQuest(txid, "service", "method", {"d": "sdjkd"}, {"arg": msgBody});	    	
-	    	that.ws.send(data);
 	    	if (txid != 0) {
 	    		that.sendList[that.sendList.length] = txid;
 	    	}
 	    	let obj = {[txid]: u8a};
     		that.sendDataList.push(obj);
+    		that.ws.send(data);
 	    } else {
 	    	that.err = "Please connect to server";
 	    	return that.err;
@@ -11554,7 +11564,8 @@ function ClientSocket() {
             	that.ws.send(that.msgHead.packMsg('B'));
             	resolve("Close success!");
             } else {
-            	reject("Waiting close!");
+            	// reject("Waiting close!");
+            	console.log("Waiting close!");
             }
 		});
 	}
@@ -11599,7 +11610,7 @@ function ClientSocket() {
 						that.connect(that.url ,(readyState) => { // try to connect ws_server
 							if (readyState == 2) {
 								that.msgHead = new msgHeader();
-								that.ws.send(that.msgHead.cryptQuest(v[j+1]));
+								ReconnectFlag = false;
 								if (that.sendList.length == 0) {
 									clearInterval(resendTimer);
 									return true;
@@ -11670,7 +11681,7 @@ if (typeof(window) === 'undefined') {
 	}
 } else {
     window.ClientSocket = ClientSocket;
-    window.webSocketCloseFlag = webSocketCloseFlag;
+    window.ReconnectFlag = ReconnectFlag;
 }
 
 }).call(this,require('_process'))

@@ -138,6 +138,7 @@ class MsgHeader {
 		u8a.set(new Uint8Array(newArg), n1 + n2);
 		let msgBuffer = this.cryptQuest(u8a);
 		console.log("send data id ", txid);
+		console.log("send data", u8a);
 		return [u8a, msgBuffer];
 	}
 	cryptQuest(u8a) {

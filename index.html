@@ -46,7 +46,7 @@
    	 	let reconnectTime = 0;
 		function connectting() {
 			let ele = document.createElement('div');
-			if (client != undefined && client.ws.readyState == 2) {
+			if (client != undefined && client.ws.readyState == 1 && client.readyState == 2) {
 				ele.innerText = '【Server already connect】';
 				document.getElementById('info').appendChild(ele);
 				return;
@@ -73,7 +73,7 @@
 				document.getElementById('info').appendChild(ele);
 			});
 			conServerTime = setTimeout(() => {
-				if (client.ws.readyState == 2 && !webSocketCloseFlag) {
+				if (client.ws.readyState == 2 && ReconnectFlag) {
 					console.log("reconnect success !")
 					ele.innerText = '【Server is reconnect !】';
 					document.getElementById('info').appendChild(ele);
@@ -124,7 +124,7 @@
 			    document.getElementById('info').appendChild(ele);
 			}
 			client.ws.onclose = (e) => {
-				if (!webSocketCloseFlag && client != undefined && client.ws.readyState == 1) {
+				if (!ReconnectFlag && client != undefined && client.ws.readyState == 1) {
 					let ele = document.createElement('div');
 		        	ele.innerText = '【Server is in normal service】';
 		        	document.getElementById('info').appendChild(ele);
