@@ -61,32 +61,42 @@
 			   // ws://10.8.161.112:8888/
 			   // wss://echo.websocket.org
 			// client = new ClientSocket('ws://192.168.200.93:8888/');
-			client = new ClientSocket();
+			client = new ClientSocket(wsReconnect);
 			client.connect('ws://192.168.200.40:8989/', function(readyState) {
 				if (readyState == 2) {
 					ele.innerText = '【Server is in normal service】';
 				} else if (readyState == 4) {
 					ele.innerText = '【Server is disconnect】';
-				} else{
+				} else {
 					ele.innerText = '【Server is exception service】' + readyState;
 				}
 				document.getElementById('info').appendChild(ele);
 			});
-			conServerTime = setTimeout(() => {
-				if (client.ws.readyState == 2 && ReconnectFlag) {
-					console.log("reconnect success !")
-					ele.innerText = '【Server is reconnect !】';
-					document.getElementById('info').appendChild(ele);
-					// clearTimeout(conServerTime);
-					return;
-				} else if(client.ws.readyState > 2) {
-					ele.innerText = '【Server is disconnect !】';
-					document.getElementById('info').appendChild(ele);
-					// if (reconnectTime++ >= 3) {
-					// 	clearTimeout(conServerTime);
-					// }
-				}
-			}, 2000);
+		}
+		function wsReconnect(linkInfo = "") {
+		    console.log("Reconnect", linkInfo);
+		    let ele = document.createElement('div');
+		    if (linkInfo == "") {
+			    ele.innerText = '【Reconnect to Server success】'+'\n';
+			    document.getElementById('info').appendChild(ele);
+		    } else {
+			    ele.innerText = '【Error: 】' + linkInfo;
+			    document.getElementById('info').appendChild(ele);
+		    }
+		    client.ws.onmessage = (result) => {
+				let dataMsg = client.getData(result.data).then((data) => {
+					console.log("Rece data", data);
+					if (!data.hasOwnProperty("args")) {
+						ele.innerText += '\n'+'【Receive abnormal Data: 】' + data;
+						return;
+					}
+					let tempRec = ShowTheObject(data.args);
+			    	ele.innerText += '\n'+ '【Receive Data: 】' + tempRec;
+			    }).catch((error) => {
+			    	ele.innerText = '\n'+ '【Receive exception data: 】' + error;
+			    });
+			    document.getElementById('info').appendChild(ele);
+			}   
 		}
 
 		function sendMsg(singleSign) {
@@ -113,29 +123,34 @@
 				let dataMsg = client.getData(result.data).then((data) => {
 					console.log("Rece data", data);
 					if (!data.hasOwnProperty("args")) {
-						ele.innerText += '\n'+'【Receive abnormal Data: 】' + data;
+						ele.innerText += '\n'+'【Receive abnormal Data: 】' + ShowTheObject(data);
 						return;
 					}
 					let tempRec = ShowTheObject(data.args);
 			    	ele.innerText += '【Receive Data: 】' + tempRec;
 			    }).catch((error) => {
-			    	ele.innerText = '【Receive exception data: 】' + error;
+			    	ele.innerText = '【Receive exception data: 】' + ShowTheObject(error);
 			    });
 			    document.getElementById('info').appendChild(ele);
 			}
 			client.ws.onclose = (e) => {
-				if (ReconnectFlag && client != undefined && client.ws.readyState == 1) {
+				if (client.ReconnectFlag && client != undefined && client.ws.readyState == 1) {
 					let ele = document.createElement('div');
 		        	ele.innerText = '【Server is in normal service】';
 		        	document.getElementById('info').appendChild(ele);
+		        } else if(client.sendList.length != 0) {
+		        	console.log("wait", client.sendList);
+		        	ele.innerText = '【Reconnect to server timeout!】';
+					document.getElementById('info').appendChild(ele);
+					console.log(e);
 		        } else {
 		        	ele.innerText = '【Server is disconnect !】';
 					document.getElementById('info').appendChild(ele);
-					clearTimeout(conServerTime);
 					console.log(e);
 		        }
 			}
 		}
+		
 		function ShowTheObject(obj){
 		   let des = "";
 	       for(let name in obj){

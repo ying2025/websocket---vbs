@@ -138,7 +138,6 @@ class MsgHeader {
 		u8a.set(new Uint8Array(newArg), n1 + n2);
 		let msgBuffer = this.cryptQuest(u8a);
 		console.log("send data id ", txid);
-		console.log("send data", u8a);
 		return [u8a, msgBuffer];
 	}
 	cryptQuest(u8a) {
@@ -347,12 +346,13 @@ class MsgHeader {
 		this.cli._setParameter(this.cli, g, N, N.length * 4); //N is string type rather than byte, so it multiply 4
 		this.cli.setSalt(s);  // 设置cli的salt
 		this.cli.setB(B); 
-		let a = "60975527035CF2AD1989806F0407210BC81EDC04E2762A56AFD529DDDA2D4393";
-		let A = this.cli._setA(a)   // cli设置a
-		// let A = this.cli.generateA();
+		// let a = "60975527035CF2AD1989806F0407210BC81EDC04E2762A56AFD529DDDA2D4393";
+		// let A = this.cli._setA(a)   // cli设置a
+		let A = this.cli.generateA();
 		this.cli.clientComputeS();
 		let M1 = this.cli.computeM1(this.cli);
 		if (this.cli.err != emptyString) {
+			this.err = this.cli.err;
 			return;
 		}
 		let A1 = commonFun.bytes2Str(A);
@@ -374,6 +374,7 @@ class MsgHeader {
 			this.err = "srp6a M2 not equal";
 			return;
 		}
+		console.log("Pass M2");
 		this.cli.computeK(this.cli);
 		this.vec.key = commonFun.bytes2Str(this.cli._K);
 		this._messageHeader.flags = 0x01; // encrypt
@@ -386,6 +387,7 @@ class MsgHeader {
      */
 	forbidden(args) {
 		let reason = args.reason;
+		console.log("reason" ,reason);
 		this.err = "Authentication Exception " + reason;
 		return;
 	}
@@ -640,9 +642,12 @@ class MsgHeader {
 		    	break;
 		    case 'C':
 		    	msg = this.unpackCheck(uint8Arr); // readyState: 1
+		    	if (this.err != emptyString && this.err != undefined) {
+		    		console.error("Check Error: ", this.err);
+		    	}
 		    	if (typeof msg != "undefined" && msg != undefined) {
 		    		ws.send(msg);
-		    	} else if(this._isEnc) {
+		    	} else if(this._isEnc && (this.err == emptyString ||  this.err == undefined)) { 
 		    		msg = "Pass SRP6a Verify!";
 		    	} else {
 		    		msg = "Verify fail!";
