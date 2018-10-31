@@ -35,6 +35,7 @@ class MsgHeader {
 			arg: {}
 		};
 		this._isEnc = false; // whether encrypt
+		this.passVerifyFlag = false; // pass M2 verify flag
 		this.isDealFlag = false;
 		this.err = "";
 		this.packet = [];
@@ -349,7 +350,7 @@ class MsgHeader {
 		// let a = "60975527035CF2AD1989806F0407210BC81EDC04E2762A56AFD529DDDA2D4393";
 		// let A = this.cli._setA(a)   // cli设置a
 		let A = this.cli.generateA();
-		this.cli.clientComputeS();
+		let S = this.cli.clientComputeS();
 		let M1 = this.cli.computeM1(this.cli);
 		if (this.cli.err != emptyString) {
 			this.err = this.cli.err;
@@ -374,6 +375,7 @@ class MsgHeader {
 			this.err = "srp6a M2 not equal";
 			return;
 		}
+		this.passVerifyFlag = true;
 		console.log("Pass M2");
 		this.cli.computeK(this.cli);
 		this.vec.key = commonFun.bytes2Str(this.cli._K);
@@ -387,7 +389,7 @@ class MsgHeader {
      */
 	forbidden(args) {
 		let reason = args.reason;
-		console.log("reason" ,reason);
+		console.error("reason" ,reason);
 		this.err = "Authentication Exception " + reason;
 		return;
 	}
@@ -442,6 +444,11 @@ class MsgHeader {
 		let msg = this.packAnswerBody(a);
 		return [q, this.packAnswer(msg)];
 	}
+	/**
+     *  @dev decodeQuest
+     *  Fun: Decode quest
+     *  @param {uint8Arr} receive data
+     */
 	decodeQuest(len, uint8Arr) {
 		let pos = 0;
 		this._messageHeader.type = 'Q';
@@ -567,11 +574,11 @@ class MsgHeader {
 		}
 		[a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
 		let content  = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
-		let repeateFlag = this.isAlreadReceive(content);
-		if (repeateFlag) {
-			this.receiveList = this.receiveList.filter(v => v!= a.txid);
-			return this.err;
-		}
+		// let repeateFlag = this.isAlreadReceive(content);
+		// if (repeateFlag) {
+		// 	this.receiveList = this.receiveList.filter(v => v!= a.txid);
+		// 	return this.err;
+		// }
 		[a.status, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		[a.args, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		
@@ -641,21 +648,28 @@ class MsgHeader {
 		    	this._isEnc = false;
 		    	break;
 		    case 'C':
-		    	msg = this.unpackCheck(uint8Arr); // readyState: 1
-		    	if (this.err != emptyString && this.err != undefined) {
-		    		console.error("Check Error: ", this.err);
+		    	if (this.passVerifyFlag) {
+		    		// this.passVerifyFlag = false;
+		    		msg = "Alread pass verify";
+		    		return msg;
 		    	}
-		    	if (typeof msg != "undefined" && msg != undefined) {
+		    	msg = this.unpackCheck(uint8Arr); // readyState: 1
+		    	if (typeof msg != "undefined" && msg != undefined && ws.readyState == 1) {
 		    		ws.send(msg);
 		    	} else if(this._isEnc && (this.err == emptyString ||  this.err == undefined)) { 
 		    		msg = "Pass SRP6a Verify!";
+		    		this.cli = null;
+		    		this.passVerifyFlag = false;
 		    	} else {
 		    		msg = "Verify fail!";
+		    		this.cli = null;
+		    		this.passVerifyFlag = false;
+		    		console.error("Check Error: ", this.err);
 		    	}
 		    	break;
 		    case 'Q':
 		    	msg = this.unpackQuest(uint8Arr);
-		    	if (typeof msg != "undefined" && msg != undefined) {
+		    	if (typeof msg != "undefined" && msg != undefined && ws.readyState == 1) {
 			    	ws.send(msg);
 			    }  
 		    	break;

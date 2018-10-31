@@ -1305,6 +1305,7 @@ class MsgHeader {
 			arg: {}
 		};
 		this._isEnc = false; // whether encrypt
+		this.passVerifyFlag = false; // pass M2 verify flag
 		this.isDealFlag = false;
 		this.err = "";
 		this.packet = [];
@@ -1619,7 +1620,7 @@ class MsgHeader {
 		// let a = "60975527035CF2AD1989806F0407210BC81EDC04E2762A56AFD529DDDA2D4393";
 		// let A = this.cli._setA(a)   // cli设置a
 		let A = this.cli.generateA();
-		this.cli.clientComputeS();
+		let S = this.cli.clientComputeS();
 		let M1 = this.cli.computeM1(this.cli);
 		if (this.cli.err != emptyString) {
 			this.err = this.cli.err;
@@ -1644,6 +1645,7 @@ class MsgHeader {
 			this.err = "srp6a M2 not equal";
 			return;
 		}
+		this.passVerifyFlag = true;
 		console.log("Pass M2");
 		this.cli.computeK(this.cli);
 		this.vec.key = commonFun.bytes2Str(this.cli._K);
@@ -1657,7 +1659,7 @@ class MsgHeader {
      */
 	forbidden(args) {
 		let reason = args.reason;
-		console.log("reason" ,reason);
+		console.error("reason" ,reason);
 		this.err = "Authentication Exception " + reason;
 		return;
 	}
@@ -1712,6 +1714,11 @@ class MsgHeader {
 		let msg = this.packAnswerBody(a);
 		return [q, this.packAnswer(msg)];
 	}
+	/**
+     *  @dev decodeQuest
+     *  Fun: Decode quest
+     *  @param {uint8Arr} receive data
+     */
 	decodeQuest(len, uint8Arr) {
 		let pos = 0;
 		this._messageHeader.type = 'Q';
@@ -1837,11 +1844,11 @@ class MsgHeader {
 		}
 		[a.txid, pos] = vbsDecode.decodeVBS(uint8Arr, 8);
 		let content  = new Uint8Array(uint8Arr.buffer, 9); // receive data expect txid 
-		let repeateFlag = this.isAlreadReceive(content);
-		if (repeateFlag) {
-			this.receiveList = this.receiveList.filter(v => v!= a.txid);
-			return this.err;
-		}
+		// let repeateFlag = this.isAlreadReceive(content);
+		// if (repeateFlag) {
+		// 	this.receiveList = this.receiveList.filter(v => v!= a.txid);
+		// 	return this.err;
+		// }
 		[a.status, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		[a.args, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
 		
@@ -1911,21 +1918,28 @@ class MsgHeader {
 		    	this._isEnc = false;
 		    	break;
 		    case 'C':
-		    	msg = this.unpackCheck(uint8Arr); // readyState: 1
-		    	if (this.err != emptyString && this.err != undefined) {
-		    		console.error("Check Error: ", this.err);
+		    	if (this.passVerifyFlag) {
+		    		// this.passVerifyFlag = false;
+		    		msg = "Alread pass verify";
+		    		return msg;
 		    	}
-		    	if (typeof msg != "undefined" && msg != undefined) {
+		    	msg = this.unpackCheck(uint8Arr); // readyState: 1
+		    	if (typeof msg != "undefined" && msg != undefined && ws.readyState == 1) {
 		    		ws.send(msg);
 		    	} else if(this._isEnc && (this.err == emptyString ||  this.err == undefined)) { 
 		    		msg = "Pass SRP6a Verify!";
+		    		this.cli = null;
+		    		this.passVerifyFlag = false;
 		    	} else {
 		    		msg = "Verify fail!";
+		    		this.cli = null;
+		    		this.passVerifyFlag = false;
+		    		console.error("Check Error: ", this.err);
 		    	}
 		    	break;
 		    case 'Q':
 		    	msg = this.unpackQuest(uint8Arr);
-		    	if (typeof msg != "undefined" && msg != undefined) {
+		    	if (typeof msg != "undefined" && msg != undefined && ws.readyState == 1) {
 			    	ws.send(msg);
 			    }  
 		    	break;
@@ -11406,6 +11420,7 @@ function ClientSocket(wsReconnect) {
     this.txid = 1;
     this.maxAttempTimes = max_attemp_times; // Attemp reconnect time
     this.attempTime = 0;
+    this.stopFlag = true;
     let that = this; // ClientSocket
     that.msgHead = new msgHeader();
 
@@ -11428,19 +11443,31 @@ function ClientSocket(wsReconnect) {
 		    	console.log('ws onmessage from server: ', data);
 		    	if (data.type !== undefined && data.type == 'H') {
 			    	callback(that.readyState);
+			    	console.time("sendList");
 			    	if (that.sendList.length != 0) {
-		    			that.sendDataList.filter((v, j) => {
-		    				console.log("list", v, j);
-							if (that.sendList.indexOf(j+1) != -1) {  // txid start from 1 
-							  if (typeof v[j+1] != "undefined" && v[j+1] != undefined) { // sendList is disordered
-							  		that.ws.send(that.msgHead.cryptQuest(v[j+1]));
-							  } else {
-							  	    that.ws.send(that.sendDataList[that.sendList.indexOf(j+1)][j+1]);
-							  	  console.log("rendData list",that.sendDataList[that.sendList.indexOf(j+1)][j+1]);
-							  }
-							}
-						});
+			    		that.sendList.forEach(k => {
+					        that.sendDataList.filter(v => {
+					            if (v[k] != undefined && typeof v[k] != "undefined") {
+					            	console.log("send ", v[k])
+					                that.ws.send(that.msgHead.cryptQuest(v[k]));
+					            }
+					       });
+				    	});
+		    // 			that.sendDataList.filter((v, j) => {
+		    // 				console.log("list", v, j);
+						// 	if (that.sendList.indexOf(j+1) != -1) {  // txid start from 1 
+						// 	  if (typeof v[j+1] != "undefined" && v[j+1] != undefined) { // sendList is disordered
+						// 	  		that.ws.send(that.msgHead.cryptQuest(v[j+1]));
+						// 	  } else {
+						// 	  	    that.ws.send(that.sendDataList[that.sendList.indexOf(j+1)][j]);
+						// 	  	    console.log("txid", that.sendList.indexOf(j+1));
+						// 	  	    console.log("content list", that.sendDataList[that.sendList.indexOf(j+1)]);
+						// 	  	  console.log("rendData list",that.sendDataList[that.sendList.indexOf(j+1)][j]);
+						// 	  }
+						// 	}
+						// });
 		    		}
+		    		console.timeEnd("sendList");
 			    	// Temp test add 
     				// that.ws.send(that.msgHead.packMsg('H'));
 			    }	
@@ -11460,27 +11487,28 @@ function ClientSocket(wsReconnect) {
 			callback(that.readyState);
 			console.log("connection closed!", evt);
 			if (that.sendList.length != 0) {
-				try {
-					that.connect(that.url ,(readyState) => { // try to connect ws_server
-						if (readyState == 2) {
-							that.msgHead = new msgHeader();	
-							if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
-								that.wsReconnect("");
-							}		
-						} 
-						that.attempTime++; 
-						console.log("Retry times", that.attempTime);
-						if (that.attempTime >= that.maxAttempTimes) {
-							that.attempTime = 0;
-							if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
-								that.wsReconnect("Retry " + that.attempTime + " times fail");
+				if (that.stopFlag) {
+					try {
+						that.connect(that.url ,(readyState) => { // try to connect ws_server
+							if (readyState == 2) {
+								that.msgHead = new msgHeader();	
+								if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
+									that.wsReconnect("");
+								}		
+							} 
+							that.attempTime++; 
+							if (that.attempTime >= that.maxAttempTimes) {
+								that.attempTime = 0;
+								that.stopFlag = false;
+								console.log(that.stopFlag)
+								if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
+									that.wsReconnect("Retry " + that.attempTime + " times fail");
+								}
 							}
-							throw new Error("connection fail");
-							return;
-						}
-					});
-				} catch(e) {
-					 console.error(2222, e);
+						});
+					} catch(e) {
+						 console.error(2222, e);
+					}
 				}
 			}
 			// if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
@@ -11528,8 +11556,8 @@ function ClientSocket(wsReconnect) {
     ClientSocket.prototype.getData = function(data) {
 
 		let decodeMsg = _readerBlob(data).then((result) => {
-			let msg = that.msgHead.decodeHeader(that.ws, result);
-			if (typeof msg.type != "undefined") {
+			let msg = that.msgHead.decodeHeader(that.ws, result);;
+			if (msg != undefined && typeof msg.type != "undefined") {
 				switch (msg.type) {
 					case 'H':
 						that.readyState  = 2; // Can send message
@@ -11556,7 +11584,9 @@ function ClientSocket(wsReconnect) {
 						break;
 				}
 			}
-			return msg;
+			if (msg != undefined) {
+				return msg;
+			}
 		 }).catch(function (error) {
 		    return error;
 		});
@@ -11613,41 +11643,80 @@ function ClientSocket(wsReconnect) {
 				}
 				return true;
 			}
-			that.sendDataList.filter((v, j) => {
-				if (that.sendList.indexOf(j+1) != -1) {  // txid start from 1 
-					if (that.ws.readyState == 1) {
-						that.readyState = 2;
-						if (that.sendList.length == 0 || m >= that.maxAttempTimes) {
-							clearInterval(resendTimer);
-							if (flag) { // Close active
-								that.ws.close();
-							}
-							return;
-						}	
-						sleep(500); // less than resendTimer Interval number, or it will be wait.
-						console.log("mmmm", m)
-					} else {
-						that.connect(that.url ,(readyState) => { // try to connect ws_server
-							if (readyState == 2) {
-								that.msgHead = new msgHeader();
-								if (that.sendList.length == 0) {
+			if (that.sendList.length != 0) {
+	    		that.sendList.forEach(k => {
+			        that.sendDataList.filter(v => {
+			            if (v[k] != undefined && typeof v[k] != "undefined") {
+			                if (that.ws.readyState == 1) {
+								if (that.sendList.length == 0 || m >= that.maxAttempTimes) {
 									clearInterval(resendTimer);
+									if (flag) { // Close active
+										that.ws.close();
+										return true;
+									}
+								}	
+								sleep(500); // less than resendTimer Interval number, or it will be wait.
+								console.log("mmmm", m);
+							} else {
+								that.connect(that.url ,(readyState) => { // try to connect ws_server
+									if (readyState == 2) {
+										that.msgHead = new msgHeader();
+										if (that.sendList.length == 0) {
+											clearInterval(resendTimer);
+											return true;
+										}
+										if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
+											that.wsReconnect();
+										}	
+									} 
+								});
+								if (m > that.maxAttempTimes) {
+									clearInterval(resendTimer);
+									that.ws.close();
 									return true;
 								}
-								if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
-									that.wsReconnect();
-								}	
-							} 
-						});
-						if (m > that.maxAttempTimes) {
-							clearInterval(resendTimer);
-							that.ws.close();
-							return true;
-						}
-					}
-					m++;
-				}
-			});	
+							}
+							m++;
+			            }
+			       });
+		    	});
+    		}
+
+			// that.sendDataList.filter((v, j) => {
+			// 	if (that.sendList.indexOf(j+1) != -1) {  // txid start from 1 
+			// 		if (that.ws.readyState == 1) {
+			// 			that.readyState = 2;
+			// 			if (that.sendList.length == 0 || m >= that.maxAttempTimes) {
+			// 				clearInterval(resendTimer);
+			// 				if (flag) { // Close active
+			// 					that.ws.close();
+			// 					return true;
+			// 				}
+			// 			}	
+			// 			sleep(500); // less than resendTimer Interval number, or it will be wait.
+			// 			console.log("mmmm", m)
+			// 		} else {
+			// 			that.connect(that.url ,(readyState) => { // try to connect ws_server
+			// 				if (readyState == 2) {
+			// 					that.msgHead = new msgHeader();
+			// 					if (that.sendList.length == 0) {
+			// 						clearInterval(resendTimer);
+			// 						return true;
+			// 					}
+			// 					if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
+			// 						that.wsReconnect();
+			// 					}	
+			// 				} 
+			// 			});
+			// 			if (m > that.maxAttempTimes) {
+			// 				clearInterval(resendTimer);
+			// 				that.ws.close();
+			// 				return true;
+			// 			}
+			// 		}
+			// 		m++;
+			// 	}
+			// });	
 		}, 1000);	
 	}
 	/**
