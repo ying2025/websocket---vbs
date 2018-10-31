@@ -648,8 +648,8 @@ class MsgHeader {
 		    	this._isEnc = false;
 		    	break;
 		    case 'C':
+		    	console.log("Pass Verify Flag" ,this.passVerifyFlag);
 		    	if (this.passVerifyFlag) {
-		    		// this.passVerifyFlag = false;
 		    		msg = "Alread pass verify";
 		    		return msg;
 		    	}
