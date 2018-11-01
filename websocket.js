@@ -230,51 +230,90 @@ function ClientSocket(wsReconnect) {
 		let m = 0; // connect ws_server' times
 		let resendTimer = setInterval(() => {
 			if (that.sendList.length == 0) {
-				clearInterval(resendTimer);
 				if (flag) {
 					that.ws.close();
 				}
+				clearInterval(resendTimer);
 				return true;
 			}
-			if (that.sendList.length != 0) {
-	    		that.sendList.forEach(k => {
-			        that.sendDataList.filter(v => {
-			            if (v[k] != undefined && typeof v[k] != "undefined") {
-			                if (that.ws.readyState == 1) {
-								if (that.sendList.length == 0 || m >= that.maxAttempTimes) {
-									clearInterval(resendTimer);
-									if (flag) { // Close active
-										that.ws.close();
-										return true;
-									}
-								}	
-								sleep(500); // less than resendTimer Interval number, or it will be wait.
-								console.log("mmmm", m);
-							} else {
-								that.connect(that.url ,(readyState) => { // try to connect ws_server
-									if (readyState == 2) {
-										that.msgHead = new msgHeader();
-										if (that.sendList.length == 0) {
-											clearInterval(resendTimer);
-											return true;
-										}
-										if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
-											that.wsReconnect();
-										}	
-									} 
-								});
-								if (m > that.maxAttempTimes) {
-									clearInterval(resendTimer);
-									that.ws.close();
-									return true;
-								}
-							}
-							m++;
-			            }
-			       });
-		    	});
-    		}
-		}, 1000);	
+			if (that.ws.readyState == 1) {
+				if (that.sendList.length == 0 || m >= that.maxAttempTimes) {
+					try {
+						that.msgHead.passVerifyFlag = false;
+						that.ws.close();
+					} catch(e) {
+						throw new Error(e);
+					}	
+					clearInterval(resendTimer);
+					return true;
+				}	
+				sleep(1000); // less than resendTimer Interval number, or it will be wait.
+			} else {
+				that.connect(that.url ,(readyState) => { // try to connect ws_server
+					if (readyState == 2) {
+						that.msgHead = new msgHeader();
+						if (that.sendList.length == 0) {
+							clearInterval(resendTimer);
+							return true;
+						}
+						if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
+							that.wsReconnect();
+						}	
+					} 
+				});
+				if (m > that.maxAttempTimes) {
+					that.ws.close();
+					clearInterval(resendTimer);
+					if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
+						that.wsReconnect("Connect timeout");
+					}
+					console.log("Closed");
+					return true;
+				}
+			}
+			m++;
+			// if (that.sendList.length != 0) {
+	  //   		that.sendList.forEach(k => {
+			//         that.sendDataList.filter(v => {
+			//             if (v[k] != undefined && typeof v[k] != "undefined") {
+			    //             if (that.ws.readyState == 1) {
+							// 	if (that.sendList.length == 0 || m >= that.maxAttempTimes) {
+							// 		try {
+							// 			that.msgHead.passVerifyFlag = false;
+							// 			that.ws.close();
+							// 		} catch(e) {
+							// 			throw new Error(e);
+							// 		}	
+							// 		clearInterval(resendTimer);
+							// 		return true;
+							// 	}	
+							// 	sleep(1000); // less than resendTimer Interval number, or it will be wait.
+							// } else {
+							// 	that.connect(that.url ,(readyState) => { // try to connect ws_server
+							// 		if (readyState == 2) {
+							// 			that.msgHead = new msgHeader();
+							// 			if (that.sendList.length == 0) {
+							// 				clearInterval(resendTimer);
+							// 				return true;
+							// 			}
+							// 			if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
+							// 				that.wsReconnect();
+							// 			}	
+							// 		} 
+							// 	});
+							// 	if (m > that.maxAttempTimes) {
+							// 		that.ws.close();
+							// 		clearInterval(resendTimer);
+							// 		console.log("Closed");
+							// 		return true;
+							// 	}
+							// }
+			    //         }
+			    //    });
+		    	// });
+		    	// m++;
+    		// }
+		}, 2000);	
 	}
 	/**
      *  @dev sleep
