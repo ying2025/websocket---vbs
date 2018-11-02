@@ -35,7 +35,6 @@ class MsgHeader {
 			arg: {}
 		};
 		this._isEnc = false; // whether encrypt
-		this.passVerifyFlag = false; // pass M2 verify flag
 		this.isDealFlag = false;
 		this.err = "";
 		this.packet = [];
@@ -388,8 +387,7 @@ class MsgHeader {
      */
 	forbidden(args) {
 		let reason = args.reason;
-		console.error("reason" ,reason);
-		this.err = "Authentication Exception " + reason;
+		this.err = "Authentication Exception " + JSON.stringify(reason);
 		return;
 	}
 	/**
@@ -641,26 +639,24 @@ class MsgHeader {
 			case 'H': 
 				this._messageHeader.flags = uint8Arr[4];
 		    	msg = Object.assign(this._messageHeader, {type:'H'});
-		    	this.passVerifyFlag = true;
 		    	break;
 		    case 'B':
 		    	msg = Object.assign(this._messageHeader, {type:'B'});
 		    	this._isEnc = false;
 		    	break;
 		    case 'C':
-		    	if (this.passVerifyFlag) {
-		    		msg = "Alread pass verify";
-		    		return msg;
-		    	}
 		    	msg = this.unpackCheck(uint8Arr); // readyState: 1
+		    	let errFlag = (this.err == emptyString ||  this.err == undefined);
 		    	if (typeof msg != "undefined" && msg != undefined && ws.readyState == 1) {
 		    		ws.send(msg);
-		    	} else if(this._isEnc && (this.err == emptyString ||  this.err == undefined)) { 
+		    	} else if(this._isEnc && errFlag) { 
 		    		msg = "Pass SRP6a Verify!";
 		    		this.cli = null;
+		    	} else if(!this._isEnc && errFlag) {
+		    		msg = "SRP6a is Verifing!";
 		    	} else {
-		    		msg = "Verify fail!";
-		    		this.cli = null;
+		    		msg = "SRP6a Verify fail: " + this.err;
+		    		// this.cli = null;
 		    		console.error("Check Error: ", this.err);
 		    	}
 		    	break;

@@ -1305,7 +1305,6 @@ class MsgHeader {
 			arg: {}
 		};
 		this._isEnc = false; // whether encrypt
-		this.passVerifyFlag = false; // pass M2 verify flag
 		this.isDealFlag = false;
 		this.err = "";
 		this.packet = [];
@@ -1658,8 +1657,7 @@ class MsgHeader {
      */
 	forbidden(args) {
 		let reason = args.reason;
-		console.error("reason" ,reason);
-		this.err = "Authentication Exception " + reason;
+		this.err = "Authentication Exception " + JSON.stringify(reason);
 		return;
 	}
 	/**
@@ -1911,26 +1909,24 @@ class MsgHeader {
 			case 'H': 
 				this._messageHeader.flags = uint8Arr[4];
 		    	msg = Object.assign(this._messageHeader, {type:'H'});
-		    	this.passVerifyFlag = true;
 		    	break;
 		    case 'B':
 		    	msg = Object.assign(this._messageHeader, {type:'B'});
 		    	this._isEnc = false;
 		    	break;
 		    case 'C':
-		    	if (this.passVerifyFlag) {
-		    		msg = "Alread pass verify";
-		    		return msg;
-		    	}
 		    	msg = this.unpackCheck(uint8Arr); // readyState: 1
+		    	let errFlag = (this.err == emptyString ||  this.err == undefined);
 		    	if (typeof msg != "undefined" && msg != undefined && ws.readyState == 1) {
 		    		ws.send(msg);
-		    	} else if(this._isEnc && (this.err == emptyString ||  this.err == undefined)) { 
+		    	} else if(this._isEnc && errFlag) { 
 		    		msg = "Pass SRP6a Verify!";
 		    		this.cli = null;
+		    	} else if(!this._isEnc && errFlag) {
+		    		msg = "SRP6a is Verifing!";
 		    	} else {
-		    		msg = "Verify fail!";
-		    		this.cli = null;
+		    		msg = "SRP6a Verify fail: " + this.err;
+		    		// this.cli = null;
 		    		console.error("Check Error: ", this.err);
 		    	}
 		    	break;
@@ -10846,7 +10842,6 @@ function Srp6aBase() {
 	// Array copy to array 
 	this._padCopy = function(dst, src) {
 		if (src == undefined || dst.length < src.length) {
-			console.error("Cann't reach here, dst length is shorter than src");
 			this.err = "Cann't reach here, dst length is shorter than src";
 			return this.err;
 		}
@@ -11417,7 +11412,8 @@ function ClientSocket(wsReconnect) {
     this.txid = 1;
     this.maxAttempTimes = max_attemp_times; // Attemp reconnect time
     this.attempTime = 0;
-    this.stopFlag = true;
+    this.stopFlag = true; // Over the maxAttempTimes stop to try
+    this.reconnectSucFlag = false;
     let that = this; // ClientSocket
     that.msgHead = new msgHeader();
 
@@ -11433,28 +11429,37 @@ function ClientSocket(wsReconnect) {
     	    that.ws = new WebSocketClient(ws_server);
     	} catch (error) {
     		that.ws = {readState: 3,close:() => {}}; // DISCONNECTED
-    		callback("Invalid url : " + ws_server + " closed !");
+    		that.wsReconnect("Invalid url : " + ws_server + " closed !");
+    		// callback("Invalid url : " + ws_server + " closed !");
     	}
 		that.ws.onmessage = function (e) {
 		    let dataMsg = that.getData(e.data).then((data) => {
 		    	console.log('ws onmessage from server: ', data);
 		    	if (data.type !== undefined && data.type == 'H') {
 			    	callback(that.readyState);
-			    	console.time("sendList");
 			    	if (that.sendList.length != 0) {
 			    		that.sendList.forEach(k => {
 					        that.sendDataList.filter(v => {
 					            if (v[k] != undefined && typeof v[k] != "undefined") {
-					            	that.ws.send(that.msgHead.cryptQuest(v[k]));
+					            	try {
+					            		if (that.ws.readyState == 1) {
+					            			that.ws.send(that.msgHead.cryptQuest(v[k]));
+					            			console.log("send txid", k);
+					            		}
+					            	} catch(e) {
+					            		throw new Error(e);
+					            	}
 					            }
 					       });
 				    	});
 		    		}
-		    		console.timeEnd("sendList");
 			    	// Temp test add 
     				// that.ws.send(that.msgHead.packMsg('H'));
 			    }	
 		    }).catch((error) => {
+		    	if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
+					that.wsReconnect("Connect fail");
+				}	
 		    	callback(error);
 		    });		    
 		};
@@ -11468,16 +11473,21 @@ function ClientSocket(wsReconnect) {
 		that.ws.onclose = function(evt) {	
 			that.readyState = that.connectStatus.closed;
 			callback(that.readyState);
+			if (that.attempTime <= 0 && that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
+				that.wsReconnect("Connection closed!");
+			}	
 			console.log("connection closed!", evt);
 			if (that.sendList.length != 0) {
 				if (that.stopFlag) {
 					try {
+						that.msgHead._isEnc = false;
 						that.connect(that.url ,(readyState) => { // try to connect ws_server
 							if (readyState == 2) {
 								that.msgHead = new msgHeader();	
 								if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
 									that.wsReconnect("");
-								}		
+								}	
+								that.reconnectSucFlag = true;	
 							} 
 							that.attempTime++; 
 							if (that.attempTime >= that.maxAttempTimes) {
@@ -11567,6 +11577,9 @@ function ClientSocket(wsReconnect) {
 				return msg;
 			}
 		 }).catch(function (error) {
+		 	if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
+				that.wsReconnect(error);
+			}
 		    return error;
 		});
 		return decodeMsg;
@@ -11584,9 +11597,6 @@ function ClientSocket(wsReconnect) {
 			if (!that.ws) {
                 that.err = "Websocket already cleared !";
                 return reject(that.err);
-            }
-            if( that.ws.terminate ) {
-                that.ws.terminate();
             }
             let allowClose = _graceClose(true);
             if (allowClose) {
@@ -11613,7 +11623,7 @@ function ClientSocket(wsReconnect) {
 			return true;
 		} 
 		// According the txid sequence to find the data
-		let m = 0; // connect ws_server' times
+		let m = 1; // connect ws_server' times
 		let resendTimer = setInterval(() => {
 			if (that.sendList.length == 0) {
 				if (flag) {
@@ -11622,84 +11632,41 @@ function ClientSocket(wsReconnect) {
 				clearInterval(resendTimer);
 				return true;
 			}
-			if (that.ws.readyState == 1) {
-				if (that.sendList.length == 0 || m >= that.maxAttempTimes) {
-					try {
-						that.msgHead.passVerifyFlag = false;
-						that.ws.close();
-					} catch(e) {
-						throw new Error(e);
-					}	
-					clearInterval(resendTimer);
-					return true;
-				}	
-				sleep(1000); // less than resendTimer Interval number, or it will be wait.
+			if (m >= that.maxAttempTimes) {
+				if (!that.reconnectSucFlag) {
+					that.ws.close();
+				}
+				sleep(2000);
+				if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
+					that.wsReconnect("Disconnect with server");
+				}
+			}
+			if (that.ws.readyState == 1) {	
+				sleep(4000); // less than resendTimer Interval number, or it will be wait.
 			} else {
 				that.connect(that.url ,(readyState) => { // try to connect ws_server
 					if (readyState == 2) {
 						that.msgHead = new msgHeader();
+						that.reconnectSucFlag = true;
 						if (that.sendList.length == 0) {
 							clearInterval(resendTimer);
 							return true;
 						}
 						if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
-							that.wsReconnect();
+							that.wsReconnect("");
 						}	
 					} 
-				});
-				if (m > that.maxAttempTimes) {
-					that.ws.close();
-					clearInterval(resendTimer);
-					if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
-						that.wsReconnect("Connect timeout");
+					if (m >= that.maxAttempTimes * 2) {
+						if (!that.reconnectSucFlag) {
+							that.ws.close();
+						}
+						clearInterval(resendTimer);
+						return true;
 					}
-					console.log("Closed");
-					return true;
-				}
+				});
 			}
 			m++;
-			// if (that.sendList.length != 0) {
-	  //   		that.sendList.forEach(k => {
-			//         that.sendDataList.filter(v => {
-			//             if (v[k] != undefined && typeof v[k] != "undefined") {
-			    //             if (that.ws.readyState == 1) {
-							// 	if (that.sendList.length == 0 || m >= that.maxAttempTimes) {
-							// 		try {
-							// 			that.msgHead.passVerifyFlag = false;
-							// 			that.ws.close();
-							// 		} catch(e) {
-							// 			throw new Error(e);
-							// 		}	
-							// 		clearInterval(resendTimer);
-							// 		return true;
-							// 	}	
-							// 	sleep(1000); // less than resendTimer Interval number, or it will be wait.
-							// } else {
-							// 	that.connect(that.url ,(readyState) => { // try to connect ws_server
-							// 		if (readyState == 2) {
-							// 			that.msgHead = new msgHeader();
-							// 			if (that.sendList.length == 0) {
-							// 				clearInterval(resendTimer);
-							// 				return true;
-							// 			}
-							// 			if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
-							// 				that.wsReconnect();
-							// 			}	
-							// 		} 
-							// 	});
-							// 	if (m > that.maxAttempTimes) {
-							// 		that.ws.close();
-							// 		clearInterval(resendTimer);
-							// 		console.log("Closed");
-							// 		return true;
-							// 	}
-							// }
-			    //         }
-			    //    });
-		    	// });
-		    	// m++;
-    		// }
-		}, 2000);	
+		}, 5000);	
 	}
 	/**
      *  @dev sleep

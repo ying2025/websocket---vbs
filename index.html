@@ -80,14 +80,14 @@
 			    ele.innerText = '【Reconnect to Server success】'+'\n';
 			    document.getElementById('info').appendChild(ele);
 		    } else {
-			    ele.innerText = '【Error: 】' + linkInfo;
+			    ele.innerText = '【Info:】 ' + linkInfo;
 			    document.getElementById('info').appendChild(ele);
 		    }
 		    client.ws.onmessage = (result) => {
 				let dataMsg = client.getData(result.data).then((data) => {
 					console.log("Rece data", data);
 					if (!data.hasOwnProperty("args")) {
-						ele.innerText += '\n'+'【Receive abnormal Data: 】' + data;
+						// ele.innerText += '\n'+'【Receive abnormal Data: 】' + data;
 						return;
 					}
 					let tempRec = ShowTheObject(data.args);
@@ -123,7 +123,11 @@
 				let dataMsg = client.getData(result.data).then((data) => {
 					console.log("Rece data", data);
 					if (!data.hasOwnProperty("args")) {
-						ele.innerText += '\n'+'【Receive abnormal Data: 】' + ShowTheObject(data);
+						if (typeof data == "string") {
+							ele.innerText += '\n'+'【Receive abnormal Data: 】' + data;
+						} else {
+							ele.innerText += '\n'+'【Receive abnormal Data: 】' + ShowTheObject(data);
+						}
 						return;
 					}
 					let tempRec = ShowTheObject(data.args);
@@ -139,11 +143,9 @@
 		        	ele.innerText = '【Server is in normal service】';
 		        	document.getElementById('info').appendChild(ele);
 		        } else if(client.sendList.length != 0) {
-		        	console.log("wait", client.sendList);
-		        	ele.innerText = '【Reconnect to server timeout!】';
-					document.getElementById('info').appendChild(ele);
-					console.log(e);
+		        	return;
 		        } else {
+		        	ele = document.createElement('div');
 		        	ele.innerText = '【Server is disconnect !】';
 					document.getElementById('info').appendChild(ele);
 					console.log(e);
