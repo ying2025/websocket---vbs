@@ -1644,7 +1644,7 @@ class MsgHeader {
 			this.err = "srp6a M2 not equal";
 			return;
 		}
-		console.log("Pass M2");
+		console.log("Pass M2 Verify!");
 		this.cli.computeK(this.cli);
 		this.vec.key = commonFun.bytes2Str(this.cli._K);
 		this._messageHeader.flags = 0x01; // encrypt
@@ -1657,7 +1657,10 @@ class MsgHeader {
      */
 	forbidden(args) {
 		let reason = args.reason;
-		this.err = "Authentication Exception " + JSON.stringify(reason);
+		if (typeof reason == "object") {
+			reason =  JSON.stringify(reason);
+		}
+		this.err = "Authentication Exception " + reason;
 		return;
 	}
 	/**
@@ -1926,7 +1929,6 @@ class MsgHeader {
 		    		msg = "SRP6a is Verifing!";
 		    	} else {
 		    		msg = "SRP6a Verify fail: " + this.err;
-		    		// this.cli = null;
 		    		console.error("Check Error: ", this.err);
 		    	}
 		    	break;
@@ -11393,7 +11395,6 @@ if (typeof WebSocket == "undefined" && !process.env.browser) {
 }
 function ClientSocket(wsReconnect) {
 	this.wsReconnect = wsReconnect;
-
     this.err = "";
     this.sendList = []; // record the request txid sequence that client send to server
     this.sendDataList = []; // record the request txid and data sequence that client send to server
@@ -11429,8 +11430,7 @@ function ClientSocket(wsReconnect) {
     	    that.ws = new WebSocketClient(ws_server);
     	} catch (error) {
     		that.ws = {readState: 3,close:() => {}}; // DISCONNECTED
-    		that.wsReconnect("Invalid url : " + ws_server + " closed !");
-    		// callback("Invalid url : " + ws_server + " closed !");
+    		callback("Invalid url : " + ws_server + " closed !");
     	}
 		that.ws.onmessage = function (e) {
 		    let dataMsg = that.getData(e.data).then((data) => {
@@ -11454,7 +11454,7 @@ function ClientSocket(wsReconnect) {
 				    	});
 		    		}
 			    	// Temp test add 
-    				// that.ws.send(that.msgHead.packMsg('H'));
+    				that.ws.send(that.msgHead.packMsg('H'));
 			    }	
 		    }).catch((error) => {
 		    	if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
@@ -11499,7 +11499,7 @@ function ClientSocket(wsReconnect) {
 							}
 						});
 					} catch(e) {
-						 console.error(2222, e);
+						 console.error(e);
 					}
 				}
 			}
