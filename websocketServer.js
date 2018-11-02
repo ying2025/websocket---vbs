@@ -63,7 +63,7 @@ class ServerSocket {
                     }
                 });
                 ws.on('error', (error) => {
-                    console.log("error", error);
+                    console.error("error", error);
                 });
                 ws.on('close', (evt) => {
                   console.log("Close", evt);
@@ -261,7 +261,7 @@ class ServerFunc {
             this.attempTimes++;
             wait(this.sleepTime);
             if (this.attempTimes > maxAttempTimes) {
-              break;  // force close after attempt three times
+                break;  // force close after attempt three times
             }
         }
         flag = (this.ws.receiveList.length == 0) && (this.ws.sendList.length == 0);
@@ -446,11 +446,8 @@ class ServerFunc {
             let A   = commonFun.strHex2Bytes(A1);
             let M1  = commonFun.strHex2Bytes(M11);
             this.ws.srv.setA(A);
-            console.log("A", this.ws.srv._A);
             this.ws.srv.serverComputeS();
             let M1_mine = this.ws.srv.computeM1(this.ws.srv);
-            console.log("M1", M1.toString(), Object.prototype.toString.call(M1))
-            console.log("M1_mine", M1_mine.toString(), Object.prototype.toString.call(M1_mine))
             if (M1_mine.toString() == M1.toString()) {
                let M2 = this.ws.srv.computeM2(this.ws.srv);
                this.msgHeader._check.cmd          = "SRP6a4";

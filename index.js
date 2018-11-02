@@ -11398,10 +11398,8 @@ function ClientSocket(wsReconnect) {
     this.err = "";
     this.sendList = []; // record the request txid sequence that client send to server
     this.sendDataList = []; // record the request txid and data sequence that client send to server
-    this.undealDataList   = [];
-    this.newConnectReceiveList = [];
     this.url = '';
- 
+ 	this.alreadyDealFlag = true;
     this.connectStatus = {
     	noConnect: 0,  //  yet connect
     	connecting: 1, // connecting
@@ -11437,6 +11435,7 @@ function ClientSocket(wsReconnect) {
 		    	console.log('ws onmessage from server: ', data);
 		    	if (data.type !== undefined && data.type == 'H') {
 			    	callback(that.readyState);
+			    	// If there are  no reply received message, then send them to server.
 			    	if (that.sendList.length != 0) {
 			    		that.sendList.forEach(k => {
 					        that.sendDataList.filter(v => {
@@ -11454,7 +11453,7 @@ function ClientSocket(wsReconnect) {
 				    	});
 		    		}
 			    	// Temp test add 
-    				that.ws.send(that.msgHead.packMsg('H'));
+    				// that.ws.send(that.msgHead.packMsg('H'));
 			    }	
 		    }).catch((error) => {
 		    	if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
@@ -11480,14 +11479,14 @@ function ClientSocket(wsReconnect) {
 			if (that.sendList.length != 0) {
 				if (that.stopFlag) {
 					try {
-						that.msgHead._isEnc = false;
+						that.msgHead._isEnc = false; // clear encrypt flag.
 						that.connect(that.url ,(readyState) => { // try to connect ws_server
 							if (readyState == 2) {
 								that.msgHead = new msgHeader();	
 								if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
-									that.wsReconnect("");
+									that.wsReconnect(""); // 
 								}	
-								that.reconnectSucFlag = true;	
+								that.reconnectSucFlag = true;
 							} 
 							that.attempTime++; 
 							if (that.attempTime >= that.maxAttempTimes) {
@@ -11543,7 +11542,7 @@ function ClientSocket(wsReconnect) {
      *  Additional describe: Read blob as file, and according to the result to do relevant deal	
      */
     ClientSocket.prototype.getData = function(data) {
-
+    	that.alreadyDealFlag = false;
 		let decodeMsg = _readerBlob(data).then((result) => {
 			let msg = that.msgHead.decodeHeader(that.ws, result);;
 			if (msg != undefined && typeof msg.type != "undefined") {
@@ -11576,10 +11575,12 @@ function ClientSocket(wsReconnect) {
 			if (msg != undefined) {
 				return msg;
 			}
+			that.alreadyDealFlag = true;
 		 }).catch(function (error) {
 		 	if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
 				that.wsReconnect(error);
 			}
+			that.alreadyDealFlag = true;
 		    return error;
 		});
 		return decodeMsg;
@@ -11616,7 +11617,7 @@ function ClientSocket(wsReconnect) {
      *  @param {flag} true/false represent Active/passivity close
      */
      function _graceClose(flag) {
-		while(that.msgHead.receiveList.length != 0) {
+		while(that.msgHead.receiveList.length != 0 && that.alreadyDealFlag) {
 			console.log("Waiting to receive txid list", that.msgHead.receiveList);
 		}
 		if (that.sendList.length == 0) {
@@ -11636,13 +11637,13 @@ function ClientSocket(wsReconnect) {
 				if (!that.reconnectSucFlag) {
 					that.ws.close();
 				}
-				sleep(2000);
+				_sleep(2000);
 				if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
 					that.wsReconnect("Disconnect with server");
 				}
 			}
 			if (that.ws.readyState == 1) {	
-				sleep(4000); // less than resendTimer Interval number, or it will be wait.
+				_sleep(4000); // less than resendTimer Interval number, or it will be wait.
 			} else {
 				that.connect(that.url ,(readyState) => { // try to connect ws_server
 					if (readyState == 2) {
@@ -11669,10 +11670,10 @@ function ClientSocket(wsReconnect) {
 		}, 5000);	
 	}
 	/**
-     *  @dev sleep
-     *  Fun: time sleep
+     *  @dev _sleep
+     *  Fun: time _sleep
      */
-	function sleep(time){
+	function _sleep(time){
 	  for( let temp = Date.now(); Date.now() - temp <= time;);
 	}
 	/**
