@@ -252,13 +252,13 @@ function ClientSocket(wsReconnect) {
 				if (!that.reconnectSucFlag) {
 					that.ws.close();
 				}
-				sleep(2000);
+				_sleep(2000);
 				if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
 					that.wsReconnect("Disconnect with server");
 				}
 			}
 			if (that.ws.readyState == 1) {	
-				sleep(4000); // less than resendTimer Interval number, or it will be wait.
+				_sleep(4000); // less than resendTimer Interval number, or it will be wait.
 			} else {
 				that.connect(that.url ,(readyState) => { // try to connect ws_server
 					if (readyState == 2) {
@@ -285,10 +285,10 @@ function ClientSocket(wsReconnect) {
 		}, 5000);	
 	}
 	/**
-     *  @dev sleep
-     *  Fun: time sleep
+     *  @dev _sleep
+     *  Fun: time _sleep
      */
-	function sleep(time){
+	function _sleep(time){
 	  for( let temp = Date.now(); Date.now() - temp <= time;);
 	}
 	/**
