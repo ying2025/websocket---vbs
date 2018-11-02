@@ -12,7 +12,6 @@ if (typeof WebSocket == "undefined" && !process.env.browser) {
 }
 function ClientSocket(wsReconnect) {
 	this.wsReconnect = wsReconnect;
-
     this.err = "";
     this.sendList = []; // record the request txid sequence that client send to server
     this.sendDataList = []; // record the request txid and data sequence that client send to server
@@ -117,7 +116,7 @@ function ClientSocket(wsReconnect) {
 							}
 						});
 					} catch(e) {
-						 console.error(2222, e);
+						 console.error(e);
 					}
 				}
 			}
