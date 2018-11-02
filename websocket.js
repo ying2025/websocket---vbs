@@ -15,7 +15,6 @@ function ClientSocket(wsReconnect) {
     this.err = "";
     this.sendList = []; // record the request txid sequence that client send to server
     this.sendDataList = []; // record the request txid and data sequence that client send to server
-    this.undealDataList   = [];
     this.url = '';
  
     this.connectStatus = {
