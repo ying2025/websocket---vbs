@@ -48,8 +48,7 @@ function ClientSocket(wsReconnect) {
     	    that.ws = new WebSocketClient(ws_server);
     	} catch (error) {
     		that.ws = {readState: 3,close:() => {}}; // DISCONNECTED
-    		that.wsReconnect("Invalid url : " + ws_server + " closed !");
-    		// callback("Invalid url : " + ws_server + " closed !");
+    		callback("Invalid url : " + ws_server + " closed !");
     	}
 		that.ws.onmessage = function (e) {
 		    let dataMsg = that.getData(e.data).then((data) => {

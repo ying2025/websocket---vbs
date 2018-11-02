@@ -374,7 +374,7 @@ class MsgHeader {
 			this.err = "srp6a M2 not equal";
 			return;
 		}
-		console.log("Pass M2");
+		console.log("Pass M2 Verify!");
 		this.cli.computeK(this.cli);
 		this.vec.key = commonFun.bytes2Str(this.cli._K);
 		this._messageHeader.flags = 0x01; // encrypt
@@ -387,7 +387,10 @@ class MsgHeader {
      */
 	forbidden(args) {
 		let reason = args.reason;
-		this.err = "Authentication Exception " + JSON.stringify(reason);
+		if (typeof reason == "object") {
+			reason =  JSON.stringify(reason);
+		}
+		this.err = "Authentication Exception " + reason;
 		return;
 	}
 	/**
@@ -656,7 +659,6 @@ class MsgHeader {
 		    		msg = "SRP6a is Verifing!";
 		    	} else {
 		    		msg = "SRP6a Verify fail: " + this.err;
-		    		// this.cli = null;
 		    		console.error("Check Error: ", this.err);
 		    	}
 		    	break;
