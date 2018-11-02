@@ -261,7 +261,7 @@ class ServerFunc {
             this.attempTimes++;
             wait(this.sleepTime);
             if (this.attempTimes > maxAttempTimes) {
-                break;  // force close after attempt three times
+              break;  // force close after attempt three times
             }
         }
         flag = (this.ws.receiveList.length == 0) && (this.ws.sendList.length == 0);
