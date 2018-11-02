@@ -110,7 +110,7 @@ function ClientSocket(wsReconnect) {
 								that.attempTime = 0;
 								that.stopFlag = false;
 								if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
-									that.wsReconnect("Retry " + that.attempTime + " times fail");
+									that.wsReconnect("Retry more than 3 times, Reconnect fail !");
 								}
 							}
 						});

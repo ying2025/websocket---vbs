@@ -10993,7 +10993,11 @@ function Srp6aBase() {
 	}
 
 	Srp6aBase.prototype.computeK = function(b) {
-		if (b._K.length == 0) {
+		if (b._K.length == 0 && b.err == emptyString) {
+			if (b._S.length == 0) {
+				b.err = "S must be computed before K";
+				return emptyString;
+			}
 			// Compute: K = SHA1(PAD(S)) 
 			let buf1 = new Array(b.byteLen);
 			let h = b.hasher();
@@ -11493,7 +11497,7 @@ function ClientSocket(wsReconnect) {
 								that.attempTime = 0;
 								that.stopFlag = false;
 								if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
-									that.wsReconnect("Retry " + that.attempTime + " times fail");
+									that.wsReconnect("Retry more than 3 times, Reconnect fail !");
 								}
 							}
 						});
