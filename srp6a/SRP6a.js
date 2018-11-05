@@ -54,7 +54,6 @@ function Srp6aBase() {
 	// Array copy to array 
 	this._padCopy = function(dst, src) {
 		if (src == undefined || dst.length < src.length) {
-			console.error("Cann't reach here, dst length is shorter than src");
 			this.err = "Cann't reach here, dst length is shorter than src";
 			return this.err;
 		}
@@ -204,7 +203,11 @@ function Srp6aBase() {
 	}
 
 	Srp6aBase.prototype.computeK = function(b) {
-		if (b._K.length == 0) {
+		if (b._K.length == 0 && b.err == emptyString) {
+			if (b._S.length == 0) {
+				b.err = "S must be computed before K";
+				return emptyString;
+			}
 			// Compute: K = SHA1(PAD(S)) 
 			let buf1 = new Array(b.byteLen);
 			let h = b.hasher();

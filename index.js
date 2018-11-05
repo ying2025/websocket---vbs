@@ -1310,6 +1310,7 @@ class MsgHeader {
 		this.packet = [];
 		this.send_nonce = send_nonce;
     	this.noce_increase_step = send_add_state;
+    	this.alreadyPassCheck = false;
     	this.vec = {
             key: "8395FCF1E95BEBD697BD010BC766AAC3",
             nonce: "22E7ADD93CFC6393C57EC0B3C17D6B44",
@@ -1627,7 +1628,8 @@ class MsgHeader {
 		}
 		let A1 = commonFun.bytes2Str(A);
 		let M11 = commonFun.bytes2Str(M1);
-		let arg = {"A":A1, "M1":M11};	
+		let arg = {"A":A1, "M1":M11};
+		console.log("send SRP6a3 command")	
 		return this.packCheck(command, arg);
 	}
 	/**
@@ -1649,6 +1651,7 @@ class MsgHeader {
 		this.vec.key = commonFun.bytes2Str(this.cli._K);
 		this._messageHeader.flags = 0x01; // encrypt
 		this._isEnc = true;  // Encrypt flag
+		this.alreadyPassCheck = true;
 	}
 	/**
      *  @dev forbidden
@@ -1910,6 +1913,7 @@ class MsgHeader {
 		}
 		switch (type) {
 			case 'H': 
+				console.log("alreadyPassCheck before H", this.alreadyPassCheck);
 				this._messageHeader.flags = uint8Arr[4];
 		    	msg = Object.assign(this._messageHeader, {type:'H'});
 		    	break;
@@ -1918,6 +1922,11 @@ class MsgHeader {
 		    	this._isEnc = false;
 		    	break;
 		    case 'C':
+		    	console.log("alreadyPassCheck", this.alreadyPassCheck);
+		    	if (this.alreadyPassCheck) {
+		    		msg = "Already Pass SRP6a Verify!";
+		    		return msg;
+		    	}
 		    	msg = this.unpackCheck(uint8Arr); // readyState: 1
 		    	let errFlag = (this.err == emptyString ||  this.err == undefined);
 		    	if (typeof msg != "undefined" && msg != undefined && ws.readyState == 1) {
@@ -11390,7 +11399,7 @@ const vbsEncode = require('./VBS/encode.js');
 const vbsDecode = require('./VBS/decode.js');
 const  msgHeader  = require('./message.js').MsgHeader;
 let emptyString = "";
-let max_attemp_times = 3;
+let max_attemp_times = 2;
 let WebSocketClient;
 if (typeof WebSocket == "undefined" && !process.env.browser) {
 	WebSocketClient = require("ws");
@@ -11438,9 +11447,14 @@ function ClientSocket(wsReconnect) {
 		    let dataMsg = that.getData(e.data).then((data) => {
 		    	console.log('ws onmessage from server: ', data);
 		    	if (data.type !== undefined && data.type == 'H') {
+		    		if (that.sendList.length != 0) {
+		    			that.reconnectSucFlag = true;
+		    		}
+		    		console.log("send list", that.sendList);
 			    	callback(that.readyState);
 			    	// If there are  no reply received message, then send them to server.
 			    	if (that.sendList.length != 0) {
+			    		that.msgHead.alreadyPassCheck = true;
 			    		that.sendList.forEach(k => {
 					        that.sendDataList.filter(v => {
 					            if (v[k] != undefined && typeof v[k] != "undefined") {
@@ -11484,6 +11498,8 @@ function ClientSocket(wsReconnect) {
 				if (that.stopFlag) {
 					try {
 						that.msgHead._isEnc = false; // clear encrypt flag.
+						that.msgHead.alreadyPassCheck = false;
+						console.log("------------Close reconnect----------------");
 						that.connect(that.url ,(readyState) => { // try to connect ws_server
 							if (readyState == 2) {
 								that.msgHead = new msgHeader();	
@@ -11491,7 +11507,15 @@ function ClientSocket(wsReconnect) {
 									that.wsReconnect(""); // 
 								}	
 								that.reconnectSucFlag = true;
-							} 
+							} else if(that.ws.readyState == 1) {
+								that.msgHead.cli = null;
+								that.connect(that.url, (readyState) => {
+									if (readyState != 2) {
+										that.wsReconnect("Retry more than 3 times, Reconnect fail !");		
+									}
+									return;
+								})
+							}
 							that.attempTime++; 
 							if (that.attempTime >= that.maxAttempTimes) {
 								that.attempTime = 0;
@@ -11631,7 +11655,7 @@ function ClientSocket(wsReconnect) {
 		let m = 1; // connect ws_server' times
 		let resendTimer = setInterval(() => {
 			if (that.sendList.length == 0) {
-				if (flag) {
+				if (flag && !that.reconnectSucFlag) {
 					that.ws.close();
 				}
 				clearInterval(resendTimer);
@@ -11639,6 +11663,7 @@ function ClientSocket(wsReconnect) {
 			}
 			if (m >= that.maxAttempTimes) {
 				if (!that.reconnectSucFlag) {
+					console.log("over max times");	
 					that.ws.close();
 				}
 				_sleep(2000);
@@ -11649,6 +11674,13 @@ function ClientSocket(wsReconnect) {
 			if (that.ws.readyState == 1) {	
 				_sleep(4000); // less than resendTimer Interval number, or it will be wait.
 			} else {
+				that.msgHead._isEnc = false; // clear encrypt flag.
+				that.msgHead.alreadyPassCheck = false;
+				if (that.ws.readyState == 1 || that.sendList.length == 0) {
+					clearInterval(resendTimer);
+					return true;
+				}
+				console.log("------------_graceClose reconnect----------------");
 				that.connect(that.url ,(readyState) => { // try to connect ws_server
 					if (readyState == 2) {
 						that.msgHead = new msgHeader();
@@ -11663,6 +11695,7 @@ function ClientSocket(wsReconnect) {
 					} 
 					if (m >= that.maxAttempTimes * 2) {
 						if (!that.reconnectSucFlag) {
+							console.log("connect over max times")	
 							that.ws.close();
 						}
 						clearInterval(resendTimer);

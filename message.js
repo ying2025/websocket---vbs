@@ -40,6 +40,7 @@ class MsgHeader {
 		this.packet = [];
 		this.send_nonce = send_nonce;
     	this.noce_increase_step = send_add_state;
+    	this.alreadyPassCheck = false;
     	this.vec = {
             key: "8395FCF1E95BEBD697BD010BC766AAC3",
             nonce: "22E7ADD93CFC6393C57EC0B3C17D6B44",
@@ -357,7 +358,8 @@ class MsgHeader {
 		}
 		let A1 = commonFun.bytes2Str(A);
 		let M11 = commonFun.bytes2Str(M1);
-		let arg = {"A":A1, "M1":M11};	
+		let arg = {"A":A1, "M1":M11};
+		console.log("send SRP6a3 command")	
 		return this.packCheck(command, arg);
 	}
 	/**
@@ -379,6 +381,7 @@ class MsgHeader {
 		this.vec.key = commonFun.bytes2Str(this.cli._K);
 		this._messageHeader.flags = 0x01; // encrypt
 		this._isEnc = true;  // Encrypt flag
+		this.alreadyPassCheck = true;
 	}
 	/**
      *  @dev forbidden
@@ -640,6 +643,7 @@ class MsgHeader {
 		}
 		switch (type) {
 			case 'H': 
+				console.log("alreadyPassCheck before H", this.alreadyPassCheck);
 				this._messageHeader.flags = uint8Arr[4];
 		    	msg = Object.assign(this._messageHeader, {type:'H'});
 		    	break;
@@ -648,6 +652,11 @@ class MsgHeader {
 		    	this._isEnc = false;
 		    	break;
 		    case 'C':
+		    	console.log("alreadyPassCheck", this.alreadyPassCheck);
+		    	if (this.alreadyPassCheck) {
+		    		msg = "Already Pass SRP6a Verify!";
+		    		return msg;
+		    	}
 		    	msg = this.unpackCheck(uint8Arr); // readyState: 1
 		    	let errFlag = (this.err == emptyString ||  this.err == undefined);
 		    	if (typeof msg != "undefined" && msg != undefined && ws.readyState == 1) {
