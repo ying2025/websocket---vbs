@@ -10,13 +10,20 @@ if (typeof WebSocket == "undefined" && !process.env.browser) {
 } else {
 	WebSocketClient = WebSocket;
 }
+function getReconnect(wsReconnect) {
+	if (wsReconnect != undefined && typeof wsReconnect != "undefined") {
+		return wsReconnect;
+	} else {
+		return () => {};
+	}
+}
 function ClientSocket(wsReconnect) {
-	this.wsReconnect = wsReconnect;
+	this.wsReconnect = getReconnect(wsReconnect);
     this.err = "";
     this.sendList = []; // record the request txid sequence that client send to server
     this.sendDataList = []; // record the request txid and data sequence that client send to server
     this.url = '';
- 	this.alreadyDealFlag = true;
+ 	this.alreadyDealFlag = true; // Whether already deal flag
     this.connectStatus = {
     	noConnect: 0,  //  yet connect
     	connecting: 1, // connecting
@@ -24,14 +31,14 @@ function ClientSocket(wsReconnect) {
     	closing: 3, // closing
     	closed: 4  // closed
     };
-    this.readyState  = 1; 
+    this.readyState  = 1; // connect state
     this.txid = 1;
-    this.maxAttempTimes = max_attemp_times; // Attemp reconnect time
-    this.attempTime = 0;
+    this.maxAttempTimes = max_attemp_times; // Attemp reconnect times
+    this.attempTime = 0;  // Attemp times
     this.stopFlag = true; // Over the maxAttempTimes stop to try
     this.reconnectSucFlag = false;
     let that = this; // ClientSocket
-    that.msgHead = new msgHeader();
+    that.msgHead = new msgHeader();  
 
     /**
      *  @dev connect
@@ -51,14 +58,17 @@ function ClientSocket(wsReconnect) {
 		    let dataMsg = that.getData(e.data).then((data) => {
 		    	console.log('ws onmessage from server: ', data);
 		    	if (data.type !== undefined && data.type == 'H') {
+		    		// If there are unanswered send list
+		    		//set reconnect flag is true, avoid reconnect again.
 		    		if (that.sendList.length != 0) {
 		    			that.reconnectSucFlag = true;
 		    		}
-		    		console.log("send list", that.sendList);
 			    	callback(that.readyState);
 			    	// If there are  no reply received message, then send them to server.
 			    	if (that.sendList.length != 0) {
-			    		that.msgHead.alreadyPassCheck = true;
+			    		// Set Already Pass Check flag, avoid to repeat SPR6a Check. 
+			    		that.msgHead.alreadyPassCheck = true; 
+			    		that.wsReconnect("");  
 			    		that.sendList.forEach(k => {
 					        that.sendDataList.filter(v => {
 					            if (v[k] != undefined && typeof v[k] != "undefined") {
@@ -78,9 +88,7 @@ function ClientSocket(wsReconnect) {
     				// that.ws.send(that.msgHead.packMsg('H'));
 			    }	
 		    }).catch((error) => {
-		    	if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
-					that.wsReconnect("Connect fail");
-				}	
+		    	that.wsReconnect("Connect fail");	
 		    	callback(error);
 		    });		    
 		};
@@ -94,7 +102,7 @@ function ClientSocket(wsReconnect) {
 		that.ws.onclose = function(evt) {	
 			that.readyState = that.connectStatus.closed;
 			callback(that.readyState);
-			if (that.attempTime <= 0 && that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
+			if (that.attempTime <= 0) {
 				that.wsReconnect("Connection closed!");
 			}	
 			console.log("connection closed!", evt);
@@ -102,20 +110,21 @@ function ClientSocket(wsReconnect) {
 				if (that.stopFlag) {
 					try {
 						that.msgHead._isEnc = false; // clear encrypt flag.
-						that.msgHead.alreadyPassCheck = false;
-						console.log("------------Close reconnect----------------");
+						// that.msgHead.alreadyPassCheck = false;
+						console.log("------------Close----------------");
 						that.connect(that.url ,(readyState) => { // try to connect ws_server
+							console.log("----------Reconnect----new MsgHead--------", readyState);
 							if (readyState == 2) {
 								that.msgHead = new msgHeader();	
-								if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
-									that.wsReconnect(""); // 
-								}	
+								that.wsReconnect("");	
 								that.reconnectSucFlag = true;
-							} else if(that.ws.readyState == 1) {
-								that.msgHead.cli = null;
+							} else {
+								that.msgHead.cli = null; // Clear SRP6a Check if fail to Check.
+								// console.log("----------Reconnect two------------");
 								that.connect(that.url, (readyState) => {
+									console.log("----------Reconnect---two------------", readyState);
 									if (readyState != 2) {
-										that.wsReconnect("Retry more than 3 times, Reconnect fail !");		
+										that.wsReconnect("Reconnect fail , disconnect with Server!");		
 									}
 									return;
 								})
@@ -124,9 +133,7 @@ function ClientSocket(wsReconnect) {
 							if (that.attempTime >= that.maxAttempTimes) {
 								that.attempTime = 0;
 								that.stopFlag = false;
-								if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
-									that.wsReconnect("Retry more than 3 times, Reconnect fail !");
-								}
+								that.wsReconnect("Retry more than 3 times, Reconnect fail !");
 							}
 						});
 					} catch(e) {
@@ -209,9 +216,7 @@ function ClientSocket(wsReconnect) {
 			}
 			that.alreadyDealFlag = true;
 		 }).catch(function (error) {
-		 	if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
-				that.wsReconnect(error);
-			}
+		 	that.wsReconnect(error);
 			that.alreadyDealFlag = true;
 		    return error;
 		});
@@ -271,9 +276,7 @@ function ClientSocket(wsReconnect) {
 					that.ws.close();
 				}
 				_sleep(2000);
-				if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
-					that.wsReconnect("Disconnect with server");
-				}
+				that.wsReconnect("Disconnect with server");
 			}
 			if (that.ws.readyState == 1) {	
 				_sleep(4000); // less than resendTimer Interval number, or it will be wait.
@@ -284,18 +287,18 @@ function ClientSocket(wsReconnect) {
 					clearInterval(resendTimer);
 					return true;
 				}
-				console.log("------------_graceClose reconnect----------------");
+				// console.log("------------_graceClose reconnect----------------");
 				that.connect(that.url ,(readyState) => { // try to connect ws_server
+					console.log(that.ws.readyState, "-----------_graceClose reconnect status--------------", readyState);
 					if (readyState == 2) {
+						console.log("-------_graceClose Connect success--------")
 						that.msgHead = new msgHeader();
 						that.reconnectSucFlag = true;
 						if (that.sendList.length == 0) {
 							clearInterval(resendTimer);
 							return true;
 						}
-						if (that.wsReconnect != undefined && typeof that.wsReconnect != "undefined") {
-							that.wsReconnect("");
-						}	
+						that.wsReconnect("");	
 					} 
 					if (m >= that.maxAttempTimes * 2) {
 						if (!that.reconnectSucFlag) {
