@@ -16,6 +16,8 @@ Now you can use it in html just by
  		 <script type="text/javascript" src="./EAX/cryptojs-aes.min.js"></script>
  		 <script type="text/javascript" src="./EAX/cryptojs-mode-ctr.min.js"></script>
  		 <script type="text/javascript" src="./EAX/eax.js"></script>
+Or you can directly run index.html.
+
 Server run in node.
 Firstly, You should install the necessary package as following.         
          
