@@ -1540,8 +1540,6 @@ class MsgHeader {
 		let pos = 0;
 		[c.cmd, pos] = vbsDecode.decodeVBS(uint8Arr, 8);		
 		[c.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-		console.log("Commond", c.cmd);
-		console.log("Arg", c.arg);
 		let msg = this.dealCmd(c.cmd, c.arg);
 		return msg;
 	}
@@ -1584,13 +1582,14 @@ class MsgHeader {
 			this.err = "Unknown authenticate method "+ method;
 			return;
 		}
+		// this.cli = commonFun.deepClone(new srp6aClient());
 		this.cli = new srp6aClient();
 		let identity = this.id;
 		let pass = this.pass;
 		this.cli.setIdentity(identity, pass);
 		let command = "SRP6a1";
 		let arg = {"I": identity};
-		console.log("-----Send Srp6a1------", arg);
+		console.log("-------send Srp6a1", arg)
 		return this.packCheck(command, arg);
 	}
 	/**
@@ -1605,7 +1604,6 @@ class MsgHeader {
 			this.err = "Client cann't be empty !";
 			return;
 		}
-		
 		let hash = args.hash;
 		let N = args.N;
 		let g = args.g;
@@ -1630,7 +1628,8 @@ class MsgHeader {
 		let A1 = commonFun.bytes2Str(A);
 		let M11 = commonFun.bytes2Str(M1);
 		let arg = {"A":A1, "M1":M11};
-		console.log("-------send SRP6a3 command--------", arg)	
+		console.log("SRP6a2 B", B.toString());
+		console.log("SRP6a2 A", A.toString());	
 		return this.packCheck(command, arg);
 	}
 	/**
@@ -11455,28 +11454,28 @@ function ClientSocket(wsReconnect) {
 		that.ws.onmessage = function (e) {
 		    let dataMsg = that.getData(e.data).then((data) => {
 		    	console.log('ws onmessage from server: ', data);
-		    	if (data.type !== undefined && data.type == 'H') {
+		    	if (data.type !== undefined && data.type == 'H' &&　that.ws.readyState == 1) {
 		    		// If there are unanswered send list
 		    		//set reconnect flag is true, avoid reconnect again.
 		    		if (that.sendList.length != 0) {
 		    			that.reconnectSucFlag = true;
+		    			that.wsReconnect("Reconnect");
+		    		} else {
+		    			that.wsReconnect("");
 		    		}
 		    		console.log("Send List", that.sendList);
 			    	callback(that.readyState);
 			    	// If there are  no reply received message, then send them to server.
 			    	if (that.sendList.length != 0) {
 			    		// Set Already Pass Check flag, avoid to repeat SPR6a Check.
-			    		console.log("--------Wait Send--------");
 			    		that.msgHead.alreadyPassCheck = true; 
-			    		that.wsReconnect("");  
 			    		that.sendList.forEach(k => {
 					        that.sendDataList.filter(v => {
+					        	// console.log("+++---Send Info-------+++", v)
 					            if (v[k] != undefined && typeof v[k] != "undefined") {
 					            	try {
-					            		if (that.ws.readyState == 1) {
-					            			that.ws.send(that.msgHead.cryptQuest(v[k]));
-					            			console.log("send txid", k);
-					            		}
+				            			that.ws.send(that.msgHead.cryptQuest(v[k]));
+				            			console.log("send txid", k);
 					            	} catch(e) {
 					            		throw new Error(e);
 					            	}
@@ -11509,26 +11508,25 @@ function ClientSocket(wsReconnect) {
 			if (that.sendList.length != 0) {
 				if (that.stopFlag) {
 					try {
+						that.msgHead = new msgHeader();
 						that.msgHead._isEnc = false; // clear encrypt flag.
 						// that.msgHead.alreadyPassCheck = false;
-						console.log("------------Close----------------");
 						that.connect(that.url ,(readyState) => { // try to connect ws_server
 							console.log("----------Reconnect----new MsgHeader--------", readyState);
 							if (readyState == 2) {
-								that.msgHead = new msgHeader();	
 								// that.wsReconnect("");	
 								that.reconnectSucFlag = true;
-							} else if (that.ws.readyState == 1 && readyState !=2){
-								that.msgHead.cli = null; // Clear SRP6a Check if fail to Check.
-								that.ws.close();
-								that.connect(that.url, (readyState) => {
-									console.log("----------Reconnect---two------------", readyState);
-									if (readyState != 2) {
-										that.wsReconnect("Reconnect fail , disconnect with Server!");		
-									}
-									return;
-								});
-							}
+							} 
+							// else if (that.ws.readyState == 1 && readyState !=2){
+							// 	that.msgHead = new msgHeader();
+							// 	that.ws.close();
+							// 	that.connect(that.url, (readyState) => {
+							// 		if (readyState != 2) {
+							// 			that.wsReconnect("Reconnect fail , disconnect with Server!");		
+							// 		}
+							// 		return;
+							// 	});
+							// }
 							that.attempTime++; 
 							if (that.attempTime >= that.maxAttempTimes) {
 								that.attempTime = 0;
@@ -11539,7 +11537,7 @@ function ClientSocket(wsReconnect) {
 					} catch(e) {
 						 console.error(e);
 					}
-				}
+				} 
 			}
 		}; 
     }
@@ -11567,7 +11565,8 @@ function ClientSocket(wsReconnect) {
 	    		that.sendList[that.sendList.length] = txid;
 	    	}
 	    	let obj = {[txid]: u8a};
-    		that.sendDataList.push(obj);
+	    	// ToDo sendDataList key whether can repeate. 0 and others
+    		that.sendDataList.push(obj);  
     		that.ws.send(data);
 	    } else {
 	    	that.err = "Please connect to server";
@@ -11588,7 +11587,6 @@ function ClientSocket(wsReconnect) {
 				switch (msg.type) {
 					case 'H':
 						that.readyState  = 2; // Can send message
-						// _resentData();
 						break;
 					case 'B':
 						that.readyState  = 3;
@@ -11622,30 +11620,6 @@ function ClientSocket(wsReconnect) {
 		    return error;
 		});
 		return decodeMsg;
-    }
-    function _resentData() {
-    	// If there are  no reply received message, then send them to server.
-    	if (that.sendList.length != 0) {
-    		// Set Already Pass Check flag, avoid to repeat SPR6a Check.
-    		console.log("--------Wait Send--------");
-    		that.msgHead.alreadyPassCheck = true; 
-    		that.wsReconnect("");  
-    		that.sendList.forEach(k => {
-		        that.sendDataList.filter(v => {
-		            if (v[k] != undefined && typeof v[k] != "undefined") {
-		            	try {
-		            		if (that.ws.readyState == 1) {
-		            			that.ws.send(that.msgHead.cryptQuest(v[k]));
-		            			console.log("send txid", k);
-		            		}
-		            	} catch(e) {
-		            		throw new Error(e);
-		            	}
-		            }
-		       });
-	    	});
-		} 
-		return;
     }
     /**
      *  @dev close
@@ -11695,12 +11669,14 @@ function ClientSocket(wsReconnect) {
 				clearInterval(resendTimer);
 				return true;
 			}
+			// Over max attemp times, and donot reconnect success.
 			if (m >= that.maxAttempTimes && !that.reconnectSucFlag) {
 				console.log("Retry over "+that.maxAttempTimes+" times");	
 				that.ws.close();
 				_sleep(2000);
 				that.wsReconnect("Retry over "+ that.maxAttempTimes +" times, Disconnect with server");
 			}
+			// If it still remain connecting, wait for reply
 			if (that.ws.readyState == 1) {	
 				_sleep(4000); // less than resendTimer Interval number, or it will be wait.
 			} else {
@@ -11710,22 +11686,18 @@ function ClientSocket(wsReconnect) {
 					clearInterval(resendTimer);
 					return true;
 				}
-				// console.log("------------_graceClose reconnect----------------");
+				that.msgHead = new msgHeader();
 				that.connect(that.url ,(readyState) => { // try to connect ws_server
-					console.log(that.ws.readyState, "-----------_graceClose reconnect status--------------", readyState);
+					console.log(that.ws.readyState, "-----------_graceClose reconnect status--------------", that.msgHead.cli);
 					if (readyState == 2) {
 						console.log("-------_graceClose Connect success--------")
-						that.msgHead = new msgHeader();
 						that.reconnectSucFlag = true;
-						if (that.sendList.length == 0) {
-							clearInterval(resendTimer);
-							return true;
-						}
-						that.wsReconnect("");	
+						clearInterval(resendTimer);
+						return true;	
 					} 
-					if (m >= that.maxAttempTimes * 2) {
+					if (m >= (that.maxAttempTimes + 1) && that.ws.readyState != 1) {
 						if (!that.reconnectSucFlag && that.readyState != 2) {
-							console.log("connect over max times")	
+							console.log(that.ws.readyState, "+++++++connect over max times+++++++", that.readyState)	
 							that.ws.close();
 						}
 						clearInterval(resendTimer);

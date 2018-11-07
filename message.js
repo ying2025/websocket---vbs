@@ -270,8 +270,6 @@ class MsgHeader {
 		let pos = 0;
 		[c.cmd, pos] = vbsDecode.decodeVBS(uint8Arr, 8);		
 		[c.arg, pos] = vbsDecode.decodeVBS(uint8Arr, pos);
-		console.log("Commond", c.cmd);
-		console.log("Arg", c.arg);
 		let msg = this.dealCmd(c.cmd, c.arg);
 		return msg;
 	}
@@ -314,13 +312,14 @@ class MsgHeader {
 			this.err = "Unknown authenticate method "+ method;
 			return;
 		}
+		// this.cli = commonFun.deepClone(new srp6aClient());
 		this.cli = new srp6aClient();
 		let identity = this.id;
 		let pass = this.pass;
 		this.cli.setIdentity(identity, pass);
 		let command = "SRP6a1";
 		let arg = {"I": identity};
-		console.log("-----Send Srp6a1------", arg);
+		console.log("-------send Srp6a1", arg)
 		return this.packCheck(command, arg);
 	}
 	/**
@@ -335,7 +334,6 @@ class MsgHeader {
 			this.err = "Client cann't be empty !";
 			return;
 		}
-		
 		let hash = args.hash;
 		let N = args.N;
 		let g = args.g;
@@ -360,7 +358,8 @@ class MsgHeader {
 		let A1 = commonFun.bytes2Str(A);
 		let M11 = commonFun.bytes2Str(M1);
 		let arg = {"A":A1, "M1":M11};
-		console.log("-------send SRP6a3 command--------", arg)	
+		console.log("SRP6a2 B", B.toString());
+		console.log("SRP6a2 A", A.toString());	
 		return this.packCheck(command, arg);
 	}
 	/**
