@@ -557,7 +557,7 @@
             this._mac = CMAC.create(macKey);
             
             this._tagLen = (options && options.tagLength) || blockLength;
-            this.reset();
+            this.reset();  // Authencation header
         },
         reset: function(){
             this._mac.update(one);
@@ -576,13 +576,13 @@
             self._mac.update(zero);
             nonce = self._mac.finalize(nonce); // finailize the nonce
             ext.xor(self._tag, nonce);
-            self._ctr = AES.createEncryptor(self._ctrKey, {
+            self._ctr = AES.createEncryptor(self._ctrKey, {  // Nonce authentication result as ctr crypt iv
                 iv: nonce, 
                 mode: C.mode.CTR, 
                 padding: C.pad.NoPadding
-            });
+            });  
             self._buf = WordArray.create();
-            self._mac.update(two);
+            self._mac.update(two); // authentication message
             
             return self;
         },
@@ -608,13 +608,13 @@
         finalize: function(){
             var self = this;
             let isEnc = self._isEnc;
-            self._mac.update(isEnc ? self.xoredData : self.data); // get the mac
+            self._mac.update(isEnc ? self.xoredData : self.data); 
 
             var xoredData = self.xoredData ? self.xoredData : WordArray.create();
             var mac = self._mac;
             var ctFin = self._ctr.finalize(); // get the last block   
             if (isEnc) {
-                var ctTag = mac.finalize(ctFin);
+                var ctTag = mac.finalize(ctFin); // Authentication ciphertext
                 ext.xor(self._tag, ctTag);
                 self.reset();
                 self.xoredData = undefined;

@@ -56,8 +56,11 @@ class ServerSocket {
                 this.sayHello(ws, msgHead);
                 ws.on('message', function incoming(data) {
                     try {
+                         console.log("receive data--", data)
+                         if (Object.prototype.toString.call(data) == '[object Uint8Array]' && data.byteLength < 8) {
+                            return;
+                         }
                          dealRequest(msgHead, ws, data);
-                        // console.log("Receive message from client", msg);
                     } catch(e) {
                         console.error(e);
                     }
@@ -152,6 +155,7 @@ function dealRequest(msgHead, ws, bufferData) {
     }  else if (bufData.length >= 8) {
          header = new Uint8Array(bufData.buffer, 0, 8);
     } else {
+          console.log("Error data type", Object.prototype.toString.call(bufferData), bufferData.byteLength, bufferData.length);
           err = "Receive data is error, the length of data is not less than 8 byte!";
           throw new Error(err);
     }
@@ -381,6 +385,7 @@ class ServerFunc {
         this.msgHeader.vec.header = this.ws.header;
         let [q, sendMsg] = this.msgHeader.unpackQuest(bufData);
         console.log("Receive message from client", q.args);
+        console.log("The data is to send ", sendMsg);
         if (typeof sendMsg != "undefined" && sendMsg != undefined) {
               this.ws.send(sendMsg);
         }
@@ -451,7 +456,8 @@ class ServerFunc {
             if (M1_mine.toString() == M1.toString()) {
                let M2 = this.ws.srv.computeM2(this.ws.srv);
                this.msgHeader._check.cmd          = "SRP6a4";
-               this.msgHeader._check.arg["M2"]    = M2;
+               let M22 = commonFun.bytes2Str(M2);
+               this.msgHeader._check.arg["M2"]    = M22;
                this.ws.key = this.ws.srv.computeK(this.ws.srv);
                this.ws.srv = null;
                this.ws.canSendHel = true;

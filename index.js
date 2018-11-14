@@ -11638,7 +11638,7 @@ function ClientSocket(wsReconnect) {
             let allowClose = _graceClose(true);
             if (allowClose) {
             	that.ws.send(that.msgHead.packMsg('B'));
-            	resolve("Close success!");
+            	// resolve("Close success!");
             } else {
             	// reject("Waiting close!");
             	console.log("Waiting close!");

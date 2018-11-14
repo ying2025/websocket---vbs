@@ -66,7 +66,6 @@ function ClientSocket(wsReconnect) {
 		    		} else {
 		    			that.wsReconnect("");
 		    		}
-		    		console.log("Send List", that.sendList);
 			    	callback(that.readyState);
 			    	// If there are  no reply received message, then send them to server.
 			    	if (that.sendList.length != 0) {
@@ -74,7 +73,6 @@ function ClientSocket(wsReconnect) {
 			    		that.msgHead.alreadyPassCheck = true; 
 			    		that.sendList.forEach(k => {
 					        that.sendDataList.filter(v => {
-					        	// console.log("+++---Send Info-------+++", v)
 					            if (v[k] != undefined && typeof v[k] != "undefined") {
 					            	try {
 				            			that.ws.send(that.msgHead.cryptQuest(v[k]));
@@ -115,7 +113,6 @@ function ClientSocket(wsReconnect) {
 						that.msgHead._isEnc = false; // clear encrypt flag.
 						// that.msgHead.alreadyPassCheck = false;
 						that.connect(that.url ,(readyState) => { // try to connect ws_server
-							console.log("----------Reconnect----new MsgHeader--------", readyState);
 							if (readyState == 2) {
 								// that.wsReconnect("");	
 								that.reconnectSucFlag = true;
@@ -241,7 +238,7 @@ function ClientSocket(wsReconnect) {
             let allowClose = _graceClose(true);
             if (allowClose) {
             	that.ws.send(that.msgHead.packMsg('B'));
-            	resolve("Close success!");
+            	// resolve("Close success!");
             } else {
             	// reject("Waiting close!");
             	console.log("Waiting close!");
@@ -273,8 +270,7 @@ function ClientSocket(wsReconnect) {
 				return true;
 			}
 			// Over max attemp times, and donot reconnect success.
-			if (m >= that.maxAttempTimes && !that.reconnectSucFlag) {
-				console.log("Retry over "+that.maxAttempTimes+" times");	
+			if (m >= that.maxAttempTimes && !that.reconnectSucFlag) {	
 				that.ws.close();
 				_sleep(2000);
 				that.wsReconnect("Retry over "+ that.maxAttempTimes +" times, Disconnect with server");
@@ -291,16 +287,13 @@ function ClientSocket(wsReconnect) {
 				}
 				that.msgHead = new msgHeader();
 				that.connect(that.url ,(readyState) => { // try to connect ws_server
-					console.log(that.ws.readyState, "-----------_graceClose reconnect status--------------", that.msgHead.cli);
 					if (readyState == 2) {
-						console.log("-------_graceClose Connect success--------")
 						that.reconnectSucFlag = true;
 						clearInterval(resendTimer);
 						return true;	
 					} 
 					if (m >= (that.maxAttempTimes + 1) && that.ws.readyState != 1) {
 						if (!that.reconnectSucFlag && that.readyState != 2) {
-							console.log(that.ws.readyState, "+++++++connect over max times+++++++", that.readyState)	
 							that.ws.close();
 						}
 						clearInterval(resendTimer);
